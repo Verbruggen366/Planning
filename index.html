@@ -358,16 +358,18 @@ var TYPES = [
   {id:"P",  lbl:"Pose",      col:"#2563eb"},
   {id:"CE", lbl:"Chomage",   col:"#94a3b8"},
   {id:"V",  lbl:"Vacances",  col:"#f59e0b"},
+  {id:"C",  lbl:"Congé",     col:"#ec4899"},
   {id:"B",  lbl:"Bureau",    col:"#64748b"}
 ];
 var GCOL = {M:"#f97316",A:"#16a34a",F:"#dc2626",T:"#7c3aed",P:"#2563eb",CE:"#94a3b8",V:"#f59e0b",B:"#64748b"};
 var DAYS = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
 var PERS_PER = ["AM1","AM2","PM1","PM2"];
 var PLBLS = ["AM","AM","PM","PM"];
-var NOCH = {CE:1,V:1,B:1};
+var NOCH = {CE:1,V:1,C:1,B:1};
 var NOCH_COLOR = {
   CE:{bg:"#fee2e2",fg:"#991b1b",brd:"#dc2626"},
   V: {bg:"#fef9c3",fg:"#713f12",brd:"#ca8a04"},
+  C: {bg:"#fdf2f8",fg:"#9d174d",brd:"#ec4899"},
   B: {bg:"#e2e8f0",fg:"#334155",brd:"#64748b"}
 };
 var PALETTE = [
@@ -658,8 +660,30 @@ function showClipBar(){if(!clip){document.getElementById("clipbar").classList.re
 
 function renderPlanning(){
   var wrap=document.getElementById("tab-planning");if(!wrap)return;
-  wrap.innerHTML='<div class="week-hint">Clic → copier/coller &nbsp;·&nbsp; Shift+clic ou Dbl-clic → éditer &nbsp;·&nbsp; <b>Clic droit → supprimer</b> &nbsp;·&nbsp; Alt+clic → supprimer</div><div class="table-wrap"><table id="ptable"><thead id="pthead"></thead><tbody id="ptbody"></tbody></table></div>';
+  var chefBar=role==="chef"?'<div style="display:flex;align-items:center;gap:8px;padding:5px 10px;background:#f0fdf4;border-bottom:1px solid #bbf7d0;flex-shrink:0"><span style="font-size:11px;color:#15803d;font-weight:600">🏖 Congé société :</span>'
+    +DAYS.map(function(day,di){return '<button onclick="openCongeModal('+di+')" style="padding:3px 10px;border-radius:6px;border:1px solid #86efac;background:#fff;color:#15803d;font-size:11px;font-weight:600;cursor:pointer">'+day+'</button>';}).join("")
+    +'</div>':'';
+  wrap.innerHTML=chefBar+'<div class="week-hint">Clic → copier/coller &nbsp;·&nbsp; Shift+clic ou Dbl-clic → éditer &nbsp;·&nbsp; <b>Clic droit → supprimer</b> &nbsp;·&nbsp; Alt+clic → supprimer</div><div class="table-wrap"><table id="ptable"><thead id="pthead"></thead><tbody id="ptbody"></tbody></table></div>';
   buildHead(); buildBody();
+}
+
+// ── CONGÉ SOCIÉTÉ ────────────────────────────────────────────
+function openCongeModal(di){
+  var d=dayDate(di);
+  var msg='Appliquer un congé pour TOUT le personnel le '+DAYS[di]+' '+fmtD(d,true)+' ?\n\nChoisir le type :\n- V = Vacances annuelles\n- C = Congé maladie/autre\n\nTaper V ou C :';
+  var type=prompt(msg,'V');
+  if(!type)return;
+  type=type.toUpperCase().trim();
+  if(type!=='V'&&type!=='C'){toast('Type invalide — utilisez V ou C');return;}
+  var count=0;
+  for(var pi=0;pi<PERS.length;pi++){
+    for(var row=0;row<4;row++){
+      setSlot(PERS[pi].id,di,PERS_PER[row],{type:type,num:'',nom:'',mbl:''});
+      count++;
+    }
+  }
+  buildBody();
+  toast('🏖 '+type+' appliqué à tout le personnel — '+DAYS[di]);
 }
 
 function buildHead(){
@@ -737,18 +761,66 @@ function renderMyPlan(){
 }
 
 // ── POINTAGE ─────────────────────────────────────────────────
+var ptSelPers = null; // selected person in chef pointage view
+
 function renderPointage(){
   var el=document.getElementById("tab-pointage");if(!el)return;
   var html="";
   if(role==="chef"){
-    // Summary of all hours
-    var anyData=false;
+    // Person selector pills
+    var selId = ptSelPers || PERS[0].id;
+    html+='<div style="display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;background:#fff;border-bottom:1px solid #e2e8f0;flex-shrink:0">';
     PERS.forEach(function(p){
-      var col=tcol(p.g),total=0;
+      var col=tcol(p.g), total=0;
       for(var di=0;di<6;di++)for(var row=0;row<4;row++){var pt=getPt(p.id,di,PERS_PER[row]);if(pt&&pt.h)total+=parseFloat(pt.h)||0;}
-      if(total>0){anyData=true;html+='<div style="background:#fff;border-radius:var(--r);padding:10px 14px;margin-bottom:6px;box-shadow:var(--sh);display:flex;align-items:center;gap:10px;border-left:3px solid '+col+'"><div style="width:28px;height:28px;border-radius:50%;background:'+col+';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px">'+p.nom[0]+'</div><div style="flex:1;font-weight:700">'+p.nom+'<div style="font-size:11px;color:#64748b;font-weight:400">'+p.poste+'</div></div><div style="font-size:18px;font-weight:800;color:'+col+'">'+total+'h</div></div>';}
+      var isOn=p.id===selId;
+      html+='<button onclick="ptSelPers=\''+p.id+'\';renderPointage()" style="padding:5px 12px;border-radius:20px;border:2px solid '+(isOn?col:'#e2e8f0')+';background:'+(isOn?col:'#fff')+';color:'+(isOn?'#fff':'#374151')+';font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px">'
+        +'<span style="width:18px;height:18px;border-radius:50%;background:'+(isOn?'rgba(255,255,255,.3)':col)+';color:'+(isOn?'#fff':'#fff')+';display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:800">'+p.nom[0]+'</span>'
+        +p.nom+(total>0?'<span style="font-size:10px;opacity:.8"> '+total+'h</span>':'')
+        +'</button>';
     });
-    if(!anyData) html='<div style="text-align:center;color:#94a3b8;padding:40px;font-size:14px">Aucune heure pointée<br>cette semaine</div>';
+    html+='</div>';
+
+    // Selected person detail
+    var p=pinfo(selId), col=tcol(p.g), totalWeek=0, detail="";
+    for(var di=0;di<6;di++){
+      var d=dayDate(di),hasAny=false,rows="",dayTotal=0;
+      for(var row=0;row<4;row++){
+        var per=PERS_PER[row],slot=getSlot(selId,di,per);
+        if(!slot||NOCH[slot.type])continue;
+        hasAny=true;
+        var t=tinfo(slot.type),pt=getPt(selId,di,per),hv=pt?pt.h:"",lb=PLBLS[row];
+        if(hv)dayTotal+=parseFloat(hv)||0;
+        var cc=cColor(slot.num);
+        rows+='<div class="pt-row">'
+          +'<div class="pt-info">'
+          +'<div class="pt-lbl" style="color:'+t.col+'">'+lb+' · '+slot.type+'</div>'
+          +'<div class="pt-ch">'+(slot.num?slot.num+' '+slot.nom:t.lbl)+'</div>'
+          +(slot.mbl?'<div class="pt-mbl">'+slot.mbl+'</div>':'')
+          +'</div>'
+          +'<div class="pt-h">'
+          +'<input type="number" min="0" max="12" step="0.25" value="'+hv+'" placeholder="0" inputmode="decimal"'
+          +' data-pid="'+selId+'" data-di="'+di+'" data-per="'+per+'"'
+          +' onchange="var h=parseFloat(this.value.replace(\',\',\'.\'))||0;setPt(this.dataset.pid,parseInt(this.dataset.di),this.dataset.per,h);renderPointage()"/>'
+          +'<span>h</span>'
+          +'</div>'
+          +'</div>';
+      }
+      if(hasAny){
+        totalWeek+=dayTotal;
+        detail+='<div class="pt-day">'
+          +'<div class="pt-day-title">'+DAYS[di]+' '+fmtD(d,true)
+          +(dayTotal>0?'<span style="margin-left:auto;background:rgba(255,255,255,.2);padding:1px 9px;border-radius:10px;font-size:11px">'+dayTotal+'h</span>':'')
+          +'</div>'+rows+'</div>';
+      }
+    }
+    if(!detail) detail='<div style="text-align:center;color:#94a3b8;padding:40px;font-size:14px">Aucune tâche planifiée<br>pour '+p.nom+' cette semaine</div>';
+    else detail='<div class="total-bar" style="border-left:4px solid '+col+'">'
+      +'<div style="display:flex;align-items:center;gap:8px">'
+      +'<div style="width:28px;height:28px;border-radius:50%;background:'+col+';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px">'+p.nom[0]+'</div>'
+      +'<span>'+p.nom+' — semaine '+isoWeek(wkMon)+'</span></div>'
+      +'<span style="color:'+col+';font-size:18px;font-weight:800">'+totalWeek+'h</span></div>'+detail;
+    html+=detail;
   } else {
     var p=pinfo(userId),totalWeek=0;
     for(var di=0;di<6;di++){
