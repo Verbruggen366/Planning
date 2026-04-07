@@ -118,9 +118,11 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;color:#1e293
 .pt-lbl{font-size:10px;font-weight:700}
 .pt-ch{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pt-mbl{font-size:10px;color:#6b7280}
-.pt-h{display:flex;align-items:center;gap:5px}
-.pt-h input{width:64px;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 6px;text-align:center;font-size:17px;font-weight:700;outline:none}
-.pt-h input:focus{border-color:var(--bleu2)}
+.pt-h{display:flex;align-items:center;gap:4px}
+.pt-h .hval{font-size:17px;font-weight:700;min-width:44px;text-align:center;color:var(--bleu)}
+.pt-h .harr{display:flex;flex-direction:column;gap:2px}
+.pt-h .harr button{width:26px;height:20px;border:1px solid #e2e8f0;border-radius:4px;background:#f8fafc;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
+.pt-h .harr button:active{background:#e2e8f0}
 .pt-h span{font-size:12px;color:#94a3b8}
 .total-bar{background:#fff;border-radius:10px;padding:12px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:700;color:#374151;box-shadow:var(--sh)}
 
@@ -861,7 +863,88 @@ function renderMyPlan(){
 
 // ── POINTAGE ─────────────────────────────────────────────────
 var ptSelPers = null;
-var extraPt = {}; // pid -> di -> [{num,nom,h}]
+var extraPt = {};
+
+// ── STEPPER HEURES ───────────────────────────────────────────
+function fmtH(v){
+  v=Math.round(v*4)/4;
+  if(v===0)return "0h";
+  var h=Math.floor(v),q=Math.round((v-h)*4);
+  var qs=["","¼","½","¾"];
+  return h>0?(h+"h"+(q>0?qs[q]:"")):qs[q]+"h";
+}
+function stepperHtml(pid,di,per,hv,extraIdx){
+  // extraIdx = -1 means normal slot, >=0 means extra row
+  var id="sh_"+pid+"_"+di+"_"+(per||("e"+extraIdx));
+  var upFn,dnFn;
+  if(extraIdx>=0){
+    upFn="adjExtra('"+pid+"',"+di+","+extraIdx+",1)";
+    dnFn="adjExtra('"+pid+"',"+di+","+extraIdx+",-1)";
+  } else {
+    upFn="adjH('"+pid+"',"+di+",'"+per+"',1)";
+    dnFn="adjH('"+pid+"',"+di+",'"+per+"',-1)";
+  }
+  return '<div class="pt-h">'
+    +'<div class="harr"><button onclick="'+upFn+'">▲</button><button onclick="'+dnFn+'">▼</button></div>'
+    +'<span class="hval" id="'+id+'">'+fmtH(hv)+'</span>'
+    +'<span>h</span>'
+    +'</div>';
+}
+function adjH(pid,di,per,dir){
+  var pt=getPt(pid,di,per),v=pt?parseFloat(pt.h)||0:0;
+  v=Math.round((v+dir*0.25)*4)/4;
+  if(v<0)v=0;if(v>12)v=12;
+  setPt(pid,di,per,v);
+  var id="sh_"+pid+"_"+di+"_"+per;
+  var el=document.getElementById(id);
+  if(el)el.textContent=fmtH(v);
+  // update day total
+  updateDayTotal(pid,di);
+}
+function adjExtra(pid,di,ei,dir){
+  var ex=getExtrasPt(pid,di)[ei];if(!ex)return;
+  var v=parseFloat(ex.h)||0;
+  v=Math.round((v+dir*0.25)*4)/4;
+  if(v<0)v=0;if(v>12)v=12;
+  ex.h=v;
+  var id="sh_"+pid+"_"+di+"_e"+ei;
+  var el=document.getElementById(id);
+  if(el)el.textContent=fmtH(v);
+  updateDayTotal(pid,di);
+}
+function updateDayTotal(pid,di){
+  var total=0;
+  for(var row=0;row<4;row++){var pt=getPt(pid,di,PERS_PER[row]);if(pt)total+=parseFloat(pt.h)||0;}
+  var extras=getExtrasPt(pid,di);
+  for(var ei=0;ei<extras.length;ei++){total+=parseFloat(extras[ei].h)||0;}
+  total=Math.round(total*4)/4;
+  // Mise à jour total du jour
+  var dtEl=document.getElementById("dt_"+pid+"_"+di);
+  if(dtEl)dtEl.textContent=total>0?fmtH(total):"";
+  // Mise à jour total semaine
+  var weekTotal=0;
+  for(var d=0;d<6;d++){
+    for(var row=0;row<4;row++){var pt2=getPt(pid,d,PERS_PER[row]);if(pt2)weekTotal+=parseFloat(pt2.h)||0;}
+    var exs=getExtrasPt(pid,d);
+    for(var ei2=0;ei2<exs.length;ei2++){weekTotal+=parseFloat(exs[ei2].h)||0;}
+  }
+  weekTotal=Math.round(weekTotal*4)/4;
+  // id wt_ pour personnel, wt_chef_ pour chef
+  var wtEl=document.getElementById("wt_"+pid);
+  if(wtEl)wtEl.textContent=fmtH(weekTotal);
+  // Mise à jour du badge total dans la barre personne sélectionnée (chef)
+  var pillEl=document.querySelector("button[onclick=\"ptSelPers='"+pid+"';renderPointage()\"] span.pt-total");
+  // Update pill total in selector bar
+  var pills=document.querySelectorAll("#tab-pointage button");
+  for(var i=0;i<pills.length;i++){
+    var btn=pills[i];
+    if(btn.textContent.indexOf(pinfo(pid).nom)>=0){
+      var sp=btn.querySelector("span");
+      if(sp)sp.textContent=weekTotal>0?" "+fmtH(weekTotal):"";
+      break;
+    }
+  }
+} // pid -> di -> [{num,nom,h}]
 
 function getExtrasPt(pid,di){
   if(!extraPt[pid])extraPt[pid]={};
@@ -917,18 +1000,13 @@ function renderPointage(){
           +'<div class="pt-ch">'+(slot.num?slot.num+' '+slot.nom:t.lbl)+'</div>'
           +(slot.mbl?'<div class="pt-mbl">'+slot.mbl+'</div>':'')
           +'</div>'
-          +'<div class="pt-h">'
-          +'<input type="number" min="0" max="12" step="0.25" value="'+hv+'" placeholder="0" inputmode="decimal"'
-          +' data-pid="'+selId+'" data-di="'+di+'" data-per="'+per+'"'
-          +' onchange="var h=parseFloat(this.value.replace(\',\',\'.\'))||0;setPt(this.dataset.pid,parseInt(this.dataset.di),this.dataset.per,h);renderPointage()"/>'
-          +'<span>h</span>'
-          +'</div>'
+          +stepperHtml(selId,di,per,parseFloat(hv)||0,-1)
           +'</div>';
       }
       // Lignes supplémentaires pour chantiers imprévus
       var extras=getExtrasPt(selId,di);
       for(var ei=0;ei<extras.length;ei++){
-        var ex=extras[ei],exhv=ex.h||"";
+        var ex=extras[ei],exhv=ex.h||0;
         if(exhv)dayTotal+=parseFloat(exhv)||0;
         rows+='<div class="pt-row" style="background:#fafafa">'
           +'<div class="pt-info">'
@@ -936,18 +1014,15 @@ function renderPointage(){
           +'<input placeholder="Client" value="'+(ex.nom||'')+'" style="border:1px solid #e2e8f0;border-radius:5px;padding:3px 6px;font-size:11px;width:90px" data-pid="'+selId+'" data-di="'+di+'" data-ei="'+ei+'" data-field="nom" onchange="updateExtraPt(this)"/>'
           +'<button onclick="removeExtraPt(\''+selId+'\','+di+','+ei+')" style="border:none;background:none;color:#dc2626;cursor:pointer;font-size:13px;margin-left:4px">✕</button>'
           +'</div>'
-          +'<div class="pt-h">'
-          +'<input type="number" min="0" max="12" step="0.25" value="'+exhv+'" placeholder="0" inputmode="decimal"'
-          +' data-pid="'+selId+'" data-di="'+di+'" data-ei="'+ei+'" data-field="h"'
-          +' onchange="updateExtraPt(this)"/>'
-          +'<span>h</span></div></div>';
+          +stepperHtml(selId,di,null,parseFloat(exhv)||0,ei)
+          +'</div>';
       }
       if(hasAny||extras.length>0){
         rows+='<div style="padding:4px 14px"><button onclick="addExtraPt(\''+selId+'\','+di+')" style="border:1px dashed #94a3b8;background:#f8fafc;color:#64748b;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer">+ Chantier imprévu</button></div>';
         totalWeek+=dayTotal;
         detail+='<div class="pt-day">'
-          +'<div class="pt-day-title">'+DAYS[di]+' '+fmtD(d,true)
-          +(dayTotal>0?'<span style="margin-left:auto;background:rgba(255,255,255,.2);padding:1px 9px;border-radius:10px;font-size:11px">'+dayTotal+'h</span>':'')
+          +'<div class="pt-day-title" id="dth_'+selId+'_'+di+'">'+DAYS[di]+' '+fmtD(d,true)
+          +'<span id="dt_'+selId+'_'+di+'" style="margin-left:auto;background:rgba(255,255,255,.2);padding:1px 9px;border-radius:10px;font-size:11px">'+(dayTotal>0?fmtH(dayTotal):'')+'</span>'
           +'</div>'+rows+'</div>';
       }
     }
@@ -956,7 +1031,7 @@ function renderPointage(){
       +'<div style="display:flex;align-items:center;gap:8px">'
       +'<div style="width:28px;height:28px;border-radius:50%;background:'+col+';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px">'+p.nom[0]+'</div>'
       +'<span>'+p.nom+' — semaine '+isoWeek(wkMon)+'</span></div>'
-      +'<span style="color:'+col+';font-size:18px;font-weight:800">'+totalWeek+'h</span></div>'+detail;
+      +'<span id="wt_'+selId+'" style="color:'+col+';font-size:18px;font-weight:800">'+fmtH(totalWeek)+'</span></div>'+detail;
     html+=detail;
   } else {
     var p=pinfo(userId),totalWeek=0;
@@ -966,31 +1041,30 @@ function renderPointage(){
         var per=PERS_PER[row],slot=getSlot(userId,di,per);
         if(!slot||NOCH[slot.type])continue;
         hasAny=true;
-        var t=tinfo(slot.type),pt=getPt(userId,di,per),hv=pt?pt.h:"",lb=PERS_PER[row];
-        if(hv)dayTotal+=parseFloat(hv)||0;
-        rows+='<div class="pt-row"><div class="pt-info"><div class="pt-lbl" style="color:'+t.col+'">'+lb+' · '+slot.type+'</div><div class="pt-ch">'+(slot.num?slot.num+" "+slot.nom:t.lbl)+'</div>'+(slot.mbl?'<div class="pt-mbl">'+slot.mbl+'</div>':'')+'</div><div class="pt-h"><input type="number" min="0" max="12" step="0.25" value="'+hv+'" placeholder="0" inputmode="decimal" data-pid="'+userId+'" data-di="'+di+'" data-per="'+per+'" onchange="var h=parseFloat(this.value.replace(\',\',\'.\'))||0;setPt(this.dataset.pid,parseInt(this.dataset.di),this.dataset.per,h);renderPointage()"/><span>h</span></div></div>';
+        var t=tinfo(slot.type),pt=getPt(userId,di,per),hv=pt?parseFloat(pt.h)||0:0,lb=PERS_PER[row];
+        if(hv)dayTotal+=hv;
+        rows+='<div class="pt-row"><div class="pt-info"><div class="pt-lbl" style="color:'+t.col+'">'+lb+' · '+slot.type+'</div><div class="pt-ch">'+(slot.num?slot.num+" "+slot.nom:t.lbl)+'</div>'+(slot.mbl?'<div class="pt-mbl">'+slot.mbl+'</div>':'')+'</div>'+stepperHtml(userId,di,per,hv,-1)+'</div>';
       }
       // Lignes supplémentaires
       var extras=getExtrasPt(userId,di);
       for(var ei=0;ei<extras.length;ei++){
-        var ex=extras[ei],exhv=ex.h||"";
-        if(exhv)dayTotal+=parseFloat(exhv)||0;
+        var ex=extras[ei],exhv=parseFloat(ex.h)||0;
+        if(exhv)dayTotal+=exhv;
         rows+='<div class="pt-row" style="background:#fafafa">'
           +'<div class="pt-info">'
           +'<input placeholder="N° chantier" value="'+(ex.num||'')+'" style="border:1px solid #e2e8f0;border-radius:5px;padding:3px 6px;font-size:11px;width:80px;margin-right:4px" data-pid="'+userId+'" data-di="'+di+'" data-ei="'+ei+'" data-field="num" onchange="updateExtraPt(this)"/>'
           +'<input placeholder="Client" value="'+(ex.nom||'')+'" style="border:1px solid #e2e8f0;border-radius:5px;padding:3px 6px;font-size:11px;width:90px" data-pid="'+userId+'" data-di="'+di+'" data-ei="'+ei+'" data-field="nom" onchange="updateExtraPt(this)"/>'
           +'<button onclick="removeExtraPt(\''+userId+'\','+di+','+ei+')" style="border:none;background:none;color:#dc2626;cursor:pointer;font-size:13px;margin-left:4px">✕</button>'
-          +'</div>'
-          +'<div class="pt-h"><input type="number" min="0" max="12" step="0.25" value="'+exhv+'" placeholder="0" inputmode="decimal" data-pid="'+userId+'" data-di="'+di+'" data-ei="'+ei+'" data-field="h" onchange="updateExtraPt(this)"/><span>h</span></div></div>';
+          +'</div>'+stepperHtml(userId,di,null,exhv,ei)+'</div>';
       }
       if(hasAny||extras.length>0){
         rows+='<div style="padding:4px 14px"><button onclick="addExtraPt(\''+userId+'\','+di+')" style="border:1px dashed #94a3b8;background:#f8fafc;color:#64748b;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer">+ Chantier imprévu</button></div>';
         totalWeek+=dayTotal;
-        html+='<div class="pt-day"><div class="pt-day-title">'+DAYS[di]+' '+fmtD(d,true)+(dayTotal>0?'<span style="margin-left:auto;background:rgba(255,255,255,.2);padding:1px 9px;border-radius:10px;font-size:11px">'+dayTotal+'h</span>':'')+'</div>'+rows+'</div>';
+        html+='<div class="pt-day"><div class="pt-day-title" id="dth_'+userId+'_'+di+'">'+DAYS[di]+' '+fmtD(d,true)+'<span id="dt_'+userId+'_'+di+'" style="margin-left:auto;background:rgba(255,255,255,.2);padding:1px 9px;border-radius:10px;font-size:11px">'+(dayTotal>0?fmtH(dayTotal):'')+'</span></div>'+rows+'</div>';
       }
     }
     if(!html)html='<div style="text-align:center;color:#94a3b8;padding:40px;font-size:14px">Aucune tâche planifiée<br>cette semaine</div>';
-    else html='<div class="total-bar"><span>Total semaine</span><span style="color:var(--bleu);font-size:18px;font-weight:800">'+totalWeek+'h</span></div>'+html;
+    else html='<div class="total-bar"><span>Total semaine</span><span id="wt_'+userId+'" style="color:var(--bleu);font-size:18px;font-weight:800">'+fmtH(totalWeek)+'</span></div>'+html;
   }
   el.innerHTML=html;
 }
