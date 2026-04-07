@@ -860,7 +860,27 @@ function renderMyPlan(){
 }
 
 // ── POINTAGE ─────────────────────────────────────────────────
-var ptSelPers = null; // selected person in chef pointage view
+var ptSelPers = null;
+var extraPt = {}; // pid -> di -> [{num,nom,h}]
+
+function getExtrasPt(pid,di){
+  if(!extraPt[pid])extraPt[pid]={};
+  if(!extraPt[pid][di])extraPt[pid][di]=[];
+  return extraPt[pid][di];
+}
+function addExtraPt(pid,di){
+  getExtrasPt(pid,di).push({num:"",nom:"",h:""});
+  renderPointage();
+}
+function removeExtraPt(pid,di,ei){
+  getExtrasPt(pid,di).splice(ei,1);
+  renderPointage();
+}
+function updateExtraPt(input){
+  var pid=input.dataset.pid,di=parseInt(input.dataset.di),ei=parseInt(input.dataset.ei),field=input.dataset.field;
+  var ex=getExtrasPt(pid,di)[ei]; if(!ex)return;
+  ex[field]=field==="h"?(parseFloat(input.value.replace(",","."))||0):input.value;
+}
 
 function renderPointage(){
   var el=document.getElementById("tab-pointage");if(!el)return;
@@ -888,7 +908,7 @@ function renderPointage(){
         var per=PERS_PER[row],slot=getSlot(selId,di,per);
         if(!slot||NOCH[slot.type])continue;
         hasAny=true;
-        var t=tinfo(slot.type),pt=getPt(selId,di,per),hv=pt?pt.h:"",lb=PLBLS[row];
+        var t=tinfo(slot.type),pt=getPt(selId,di,per),hv=pt?pt.h:"",lb=PERS_PER[row];
         if(hv)dayTotal+=parseFloat(hv)||0;
         var cc=cColor(slot.num);
         rows+='<div class="pt-row">'
@@ -905,7 +925,25 @@ function renderPointage(){
           +'</div>'
           +'</div>';
       }
-      if(hasAny){
+      // Lignes supplémentaires pour chantiers imprévus
+      var extras=getExtrasPt(selId,di);
+      for(var ei=0;ei<extras.length;ei++){
+        var ex=extras[ei],exhv=ex.h||"";
+        if(exhv)dayTotal+=parseFloat(exhv)||0;
+        rows+='<div class="pt-row" style="background:#fafafa">'
+          +'<div class="pt-info">'
+          +'<input placeholder="N° chantier" value="'+(ex.num||'')+'" style="border:1px solid #e2e8f0;border-radius:5px;padding:3px 6px;font-size:11px;width:80px;margin-right:4px" data-pid="'+selId+'" data-di="'+di+'" data-ei="'+ei+'" data-field="num" onchange="updateExtraPt(this)"/>'
+          +'<input placeholder="Client" value="'+(ex.nom||'')+'" style="border:1px solid #e2e8f0;border-radius:5px;padding:3px 6px;font-size:11px;width:90px" data-pid="'+selId+'" data-di="'+di+'" data-ei="'+ei+'" data-field="nom" onchange="updateExtraPt(this)"/>'
+          +'<button onclick="removeExtraPt(\''+selId+'\','+di+','+ei+')" style="border:none;background:none;color:#dc2626;cursor:pointer;font-size:13px;margin-left:4px">✕</button>'
+          +'</div>'
+          +'<div class="pt-h">'
+          +'<input type="number" min="0" max="12" step="0.25" value="'+exhv+'" placeholder="0" inputmode="decimal"'
+          +' data-pid="'+selId+'" data-di="'+di+'" data-ei="'+ei+'" data-field="h"'
+          +' onchange="updateExtraPt(this)"/>'
+          +'<span>h</span></div></div>';
+      }
+      if(hasAny||extras.length>0){
+        rows+='<div style="padding:4px 14px"><button onclick="addExtraPt(\''+selId+'\','+di+')" style="border:1px dashed #94a3b8;background:#f8fafc;color:#64748b;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer">+ Chantier imprévu</button></div>';
         totalWeek+=dayTotal;
         detail+='<div class="pt-day">'
           +'<div class="pt-day-title">'+DAYS[di]+' '+fmtD(d,true)
@@ -928,11 +966,28 @@ function renderPointage(){
         var per=PERS_PER[row],slot=getSlot(userId,di,per);
         if(!slot||NOCH[slot.type])continue;
         hasAny=true;
-        var t=tinfo(slot.type),pt=getPt(userId,di,per),hv=pt?pt.h:"",lb=PLBLS[row];
+        var t=tinfo(slot.type),pt=getPt(userId,di,per),hv=pt?pt.h:"",lb=PERS_PER[row];
         if(hv)dayTotal+=parseFloat(hv)||0;
         rows+='<div class="pt-row"><div class="pt-info"><div class="pt-lbl" style="color:'+t.col+'">'+lb+' · '+slot.type+'</div><div class="pt-ch">'+(slot.num?slot.num+" "+slot.nom:t.lbl)+'</div>'+(slot.mbl?'<div class="pt-mbl">'+slot.mbl+'</div>':'')+'</div><div class="pt-h"><input type="number" min="0" max="12" step="0.25" value="'+hv+'" placeholder="0" inputmode="decimal" data-pid="'+userId+'" data-di="'+di+'" data-per="'+per+'" onchange="var h=parseFloat(this.value.replace(\',\',\'.\'))||0;setPt(this.dataset.pid,parseInt(this.dataset.di),this.dataset.per,h);renderPointage()"/><span>h</span></div></div>';
       }
-      if(hasAny){totalWeek+=dayTotal;html+='<div class="pt-day"><div class="pt-day-title">'+DAYS[di]+' '+fmtD(d,true)+(dayTotal>0?'<span style="margin-left:auto;background:rgba(255,255,255,.2);padding:1px 9px;border-radius:10px;font-size:11px">'+dayTotal+'h</span>':'')+'</div>'+rows+'</div>';}
+      // Lignes supplémentaires
+      var extras=getExtrasPt(userId,di);
+      for(var ei=0;ei<extras.length;ei++){
+        var ex=extras[ei],exhv=ex.h||"";
+        if(exhv)dayTotal+=parseFloat(exhv)||0;
+        rows+='<div class="pt-row" style="background:#fafafa">'
+          +'<div class="pt-info">'
+          +'<input placeholder="N° chantier" value="'+(ex.num||'')+'" style="border:1px solid #e2e8f0;border-radius:5px;padding:3px 6px;font-size:11px;width:80px;margin-right:4px" data-pid="'+userId+'" data-di="'+di+'" data-ei="'+ei+'" data-field="num" onchange="updateExtraPt(this)"/>'
+          +'<input placeholder="Client" value="'+(ex.nom||'')+'" style="border:1px solid #e2e8f0;border-radius:5px;padding:3px 6px;font-size:11px;width:90px" data-pid="'+userId+'" data-di="'+di+'" data-ei="'+ei+'" data-field="nom" onchange="updateExtraPt(this)"/>'
+          +'<button onclick="removeExtraPt(\''+userId+'\','+di+','+ei+')" style="border:none;background:none;color:#dc2626;cursor:pointer;font-size:13px;margin-left:4px">✕</button>'
+          +'</div>'
+          +'<div class="pt-h"><input type="number" min="0" max="12" step="0.25" value="'+exhv+'" placeholder="0" inputmode="decimal" data-pid="'+userId+'" data-di="'+di+'" data-ei="'+ei+'" data-field="h" onchange="updateExtraPt(this)"/><span>h</span></div></div>';
+      }
+      if(hasAny||extras.length>0){
+        rows+='<div style="padding:4px 14px"><button onclick="addExtraPt(\''+userId+'\','+di+')" style="border:1px dashed #94a3b8;background:#f8fafc;color:#64748b;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer">+ Chantier imprévu</button></div>';
+        totalWeek+=dayTotal;
+        html+='<div class="pt-day"><div class="pt-day-title">'+DAYS[di]+' '+fmtD(d,true)+(dayTotal>0?'<span style="margin-left:auto;background:rgba(255,255,255,.2);padding:1px 9px;border-radius:10px;font-size:11px">'+dayTotal+'h</span>':'')+'</div>'+rows+'</div>';
+      }
     }
     if(!html)html='<div style="text-align:center;color:#94a3b8;padding:40px;font-size:14px">Aucune tâche planifiée<br>cette semaine</div>';
     else html='<div class="total-bar"><span>Total semaine</span><span style="color:var(--bleu);font-size:18px;font-weight:800">'+totalWeek+'h</span></div>'+html;
