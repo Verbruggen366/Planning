@@ -338,7 +338,7 @@ var PERS = [
   {id:"giovanni", nom:"Giovanni",        g:"M", poste:"Numerique"},
   {id:"tom",      nom:"Tom",             g:"A", poste:"Atelier"},
   {id:"alain",    nom:"Alain",           g:"A", poste:"Atelier"},
-  {id:"marco_a",  nom:"Marco",           g:"A", poste:"Atelier"},
+  {id:"marco_a",  nom:"Mario",           g:"A", poste:"Atelier"},
   {id:"pierre_a", nom:"Pierre-Antoine",  g:"A", poste:"Atelier"},
   {id:"roberto",  nom:"Roberto",         g:"A", poste:"Atelier"},
   {id:"gaetan",   nom:"Gaetan",          g:"A", poste:"Atelier"},
@@ -660,11 +660,28 @@ function showClipBar(){if(!clip){document.getElementById("clipbar").classList.re
 
 function renderPlanning(){
   var wrap=document.getElementById("tab-planning");if(!wrap)return;
-  var chefBar=role==="chef"?'<div style="display:flex;align-items:center;gap:8px;padding:5px 10px;background:#f0fdf4;border-bottom:1px solid #bbf7d0;flex-shrink:0"><span style="font-size:11px;color:#15803d;font-weight:600">🏖 Congé société :</span>'
-    +DAYS.map(function(day,di){return '<button onclick="openCongeModal('+di+')" style="padding:3px 10px;border-radius:6px;border:1px solid #86efac;background:#fff;color:#15803d;font-size:11px;font-weight:600;cursor:pointer">'+day+'</button>';}).join("")
-    +'</div>':'';
-  wrap.innerHTML=chefBar+'<div class="week-hint">Clic → copier/coller &nbsp;·&nbsp; Shift+clic ou Dbl-clic → éditer &nbsp;·&nbsp; <b>Clic droit → supprimer</b> &nbsp;·&nbsp; Alt+clic → supprimer</div><div class="table-wrap"><table id="ptable"><thead id="pthead"></thead><tbody id="ptbody"></tbody></table></div>';
-  buildHead(); buildBody();
+  // Sauvegarder scroll avant modification
+  var tw=wrap.querySelector(".table-wrap");
+  var sTop=tw?tw.scrollTop:0, sLeft=tw?tw.scrollLeft:0;
+  var needInit=!document.getElementById("ptbody");
+  if(needInit){
+    var chefBar=role==="chef"?'<div style="display:flex;align-items:center;gap:8px;padding:5px 10px;background:#f0fdf4;border-bottom:1px solid #bbf7d0;flex-shrink:0"><span style="font-size:11px;color:#15803d;font-weight:600">🏖 Congé société :</span>'
+      +DAYS.map(function(day,di){
+        var d=dayDate(di);
+        var fer=isFerie(d);
+        var style=fer
+          ?'padding:3px 10px;border-radius:6px;border:1px solid #fcd34d;background:#fef3c7;color:#92400e;font-size:11px;font-weight:600;cursor:pointer'
+          :'padding:3px 10px;border-radius:6px;border:1px solid #86efac;background:#fff;color:#15803d;font-size:11px;font-weight:600;cursor:pointer';
+        return '<button onclick="openCongeModal('+di+')" style="'+style+'" title="'+(fer?'Férié: '+fer:'')+'">'+(fer?'🇧🇪 ':'')+day+'</button>';
+      }).join("")
+      +'</div>':'';
+    wrap.innerHTML=chefBar+'<div class="week-hint">Clic → copier/coller &nbsp;·&nbsp; Shift+clic ou Dbl-clic → éditer &nbsp;·&nbsp; <b>Clic droit → supprimer</b> &nbsp;·&nbsp; Alt+clic → supprimer</div><div class="table-wrap"><table id="ptable"><thead id="pthead"></thead><tbody id="ptbody"></tbody></table></div>';
+    buildHead();
+  }
+  buildBody();
+  // Restaurer scroll exactement où on était
+  var tw2=wrap.querySelector(".table-wrap");
+  if(tw2){tw2.scrollTop=sTop;tw2.scrollLeft=sLeft;}
 }
 
 // ── CONGÉ SOCIÉTÉ ────────────────────────────────────────────
@@ -686,20 +703,94 @@ function openCongeModal(di){
   toast('🏖 '+type+' appliqué à tout le personnel — '+DAYS[di]);
 }
 
+// ── JOURS FÉRIÉS BELGES ──────────────────────────────────────
+function getFeries(year){
+  // Jours fériés fixes
+  var f={};
+  function add(m,d,lbl){f[(new Date(year,m-1,d)).toISOString().slice(0,10)]=lbl;}
+  add(1,1,"Jour de l'An");
+  add(5,1,"Fête du Travail");
+  add(7,21,"Fête Nationale");
+  add(8,15,"Assomption");
+  add(11,1,"Toussaint");
+  add(11,11,"Armistice");
+  add(12,25,"Noël");
+  // Pâques (algorithme de Gauss)
+  var a=year%19,b=Math.floor(year/100),c=year%100;
+  var d2=Math.floor(b/4),e=b%4,f2=Math.floor((b+8)/25),g=Math.floor((b-f2+1)/3);
+  var h=(19*a+b-d2-g+15)%30,i=Math.floor(c/4),k=c%4;
+  var l=(32+2*e+2*i-h-k)%7,m2=Math.floor((a+11*h+22*l)/451);
+  var month=Math.floor((h+l-7*m2+114)/31),day=((h+l-7*m2+114)%31)+1;
+  var paques=new Date(year,month-1,day);
+  // Lundi de Pâques
+  var lPaques=new Date(paques);lPaques.setDate(lPaques.getDate()+1);
+  f[lPaques.toISOString().slice(0,10)]="Lundi de Pâques";
+  // Ascension (+39)
+  var asc=new Date(paques);asc.setDate(asc.getDate()+39);
+  f[asc.toISOString().slice(0,10)]="Ascension";
+  // Lundi de Pentecôte (+50)
+  var pent=new Date(paques);pent.setDate(pent.getDate()+50);
+  f[pent.toISOString().slice(0,10)]="Lundi de Pentecôte";
+  return f;
+}
+
+function isFerie(d){
+  var key=new Date(d).toISOString().slice(0,10);
+  var f=getFeries(new Date(d).getFullYear());
+  return f[key]||null;
+}
+
+// ── SUPPRESSION PAR PLAGE ────────────────────────────────────
+function clearDay(di){
+  var d=dayDate(di);
+  if(!confirm('Effacer TOUT le planning du '+DAYS[di]+' '+fmtD(d,true)+' pour tout le personnel ?'))return;
+  for(var pi=0;pi<PERS.length;pi++)for(var row=0;row<4;row++)setSlot(PERS[pi].id,di,PERS_PER[row],null);
+  buildBody(); toast('🗑 '+DAYS[di]+' effacé pour tout le personnel');
+}
+function clearPerson(pid){
+  var p=pinfo(pid);
+  if(!confirm('Effacer TOUTE la semaine de '+p.nom+' ?'))return;
+  for(var di=0;di<6;di++)for(var row=0;row<4;row++)setSlot(pid,di,PERS_PER[row],null);
+  buildBody(); toast('🗑 Semaine de '+p.nom+' effacée');
+}
+
 function buildHead(){
   var thead=document.getElementById("pthead");if(!thead)return;
   var r1=document.createElement("tr");
   function th(cls,txt,bg,extra){var t=document.createElement("th");t.className=cls;if(txt)t.innerHTML=txt;if(bg)t.style.background=bg;if(extra)t.style.cssText+=extra;return t;}
   r1.appendChild(th("pname","Personnel","#1a3a5c","color:#fff;font-size:10px;padding:4px 6px"));
   r1.appendChild(th("pper","","#1a3a5c",""));
-  for(var di=0;di<6;di++){var d=dayDate(di);var t2=th("day-hdr",DAYS[di]+"<br><span style='font-size:9px;font-weight:400;opacity:.8'>"+fmtD(d,true)+"</span>","","");t2.colSpan=3;if(di>0)t2.style.borderLeft="2px solid #0f2440";r1.appendChild(t2);}
+  for(var di=0;di<6;di++){
+    var d=dayDate(di);
+    var ferie=isFerie(d);
+    var bg=ferie?"#7c2d12":"#1a3a5c";
+    var bl=di>0?"border-left:2px solid "+(ferie?"#92400e":"#0f2440"):"";
+    var ferieLabel=ferie?"<br><span style='font-size:8px;font-weight:600;opacity:.9;color:#fcd34d'>🇧🇪 "+ferie+"</span>":"";
+    var t2=th("day-hdr",DAYS[di]+"<br><span style='font-size:9px;font-weight:400;opacity:.8'>"+fmtD(d,true)+"</span>"+ferieLabel,bg,"color:#fff;"+bl+(role==="chef"?";cursor:pointer;":""));
+    t2.colSpan=3;
+    if(ferie)t2.title=ferie;
+    if(role==="chef"){t2.title=(ferie?ferie+" — ":"")+"Cliquer pour effacer tout ce jour";t2.onclick=(function(idx){return function(){clearDay(idx);};})(di);}
+    r1.appendChild(t2);
+  }
   var r2=document.createElement("tr");
   r2.appendChild(th("pname","","#2c4a6e",""));r2.appendChild(th("pper","","#2c4a6e",""));
-  for(var di=0;di<6;di++){["Type","N° Client","Meuble"].forEach(function(l,ci){var t3=th("sub-hdr",l,"","");if(ci===0)t3.style.borderLeft="2px solid #3a5a7e";r2.appendChild(t3);});}
+  for(var di=0;di<6;di++){
+    var d2=dayDate(di),ferie2=isFerie(d2);
+    var subBg=ferie2?"#92400e":"#2c4a6e";
+    var bl2=di>0?"border-left:2px solid "+(ferie2?"#78350f":"#3a5a7e"):"";
+    ["Type","N° Client","Meuble"].forEach(function(l,ci){
+      var t3=th("sub-hdr",l,subBg,"color:rgba(255,255,255,.85);"+(ci===0?bl2:""));
+      r2.appendChild(t3);
+    });
+  }
   thead.innerHTML="";thead.appendChild(r1);thead.appendChild(r2);
 }
 
 function buildBody(){
+  // Mémoriser la position de scroll
+  var wrap=document.querySelector(".table-wrap");
+  var scrollTop=wrap?wrap.scrollTop:0;
+  var scrollLeft=wrap?wrap.scrollLeft:0;
   rebuildCMap();
   var tbody=document.getElementById("ptbody");if(!tbody)return;
   var frag=document.createDocumentFragment();
@@ -708,7 +799,13 @@ function buildBody(){
     for(var row=0;row<4;row++){
       var per=PERS_PER[row],lbl=PLBLS[row];
       var tr=document.createElement("tr");
-      if(row===0){var td=document.createElement("td");td.className="pname";td.rowSpan=4;td.style.cssText="background:"+col+"1a;border-left:3px solid "+col+";border-bottom:2px solid "+col+";padding:4px 6px;vertical-align:middle";td.innerHTML='<div style="display:flex;align-items:center;gap:4px"><div style="width:22px;height:22px;border-radius:50%;background:'+col+';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;flex-shrink:0">'+p.nom[0]+'</div><div><div style="font-weight:700;font-size:11px;line-height:1.1">'+p.nom+'</div><div style="font-size:9px;color:'+col+';font-weight:600">'+p.g+'</div></div></div>';tr.appendChild(td);}
+      if(row===0){
+        var td=document.createElement("td");td.className="pname";td.rowSpan=4;
+        td.style.cssText="background:"+col+"1a;border-left:3px solid "+col+";border-bottom:2px solid "+col+";padding:4px 6px;vertical-align:middle"+(role==="chef"?";cursor:pointer":"");
+        td.innerHTML='<div style="display:flex;align-items:center;gap:4px"><div style="width:22px;height:22px;border-radius:50%;background:'+col+';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;flex-shrink:0">'+p.nom[0]+'</div><div><div style="font-weight:700;font-size:11px;line-height:1.1">'+p.nom+'</div><div style="font-size:9px;color:'+col+';font-weight:600">'+p.g+'</div>'+(role==="chef"?'<div style="font-size:8px;color:#94a3b8">🗑 effacer semaine</div>':'')+'</div></div>';
+        if(role==="chef"){td.title="Cliquer pour effacer toute la semaine de "+p.nom;(function(pid){td.onclick=function(e){e.stopPropagation();clearPerson(pid);};})(p.id);}
+        tr.appendChild(td);
+      }
       var td2=document.createElement("td");td2.className="pper";td2.style.cssText="background:"+col+"12;color:"+col+";border-bottom:"+(row===3?"2px solid "+col:"1px solid #eee");td2.textContent=lbl;tr.appendChild(td2);
       for(var di=0;di<6;di++){
         var slot=getSlot(p.id,di,per),key=skey(p.id,di,per);
@@ -735,6 +832,8 @@ function buildBody(){
     var sep=document.createElement("tr");var sepTd=document.createElement("td");sepTd.colSpan=20;sepTd.style.cssText="height:3px;background:#e2e8f0;padding:0";sep.appendChild(sepTd);frag.appendChild(sep);
   }
   tbody.innerHTML="";tbody.appendChild(frag);
+  // Restaurer la position de scroll
+  if(wrap){wrap.scrollTop=scrollTop;wrap.scrollLeft=scrollLeft;}
 }
 
 // ── MY PLAN (personnel) ──────────────────────────────────────
