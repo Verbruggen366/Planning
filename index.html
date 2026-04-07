@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="theme-color" content="#1a3a5c"/>
+<!-- saved from url=(0059)file:///C:/Users/fb.FB1/Downloads/semaine_verbuggen_14.html -->
+<html lang="fr"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a3a5c">
 <title>Verbuggen Planning</title>
 <style>
 :root{--bleu:#1a3a5c;--bleu2:#2563eb;--r:12px;--sh:0 2px 12px rgba(0,0,0,.12)}
@@ -183,8 +183,8 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;color:#1e293
 
 @media(min-width:768px){.tgrid{grid-template-columns:repeat(8,1fr)}}
 </style>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="./Verbuggen Planning_files/firebase-app-compat.js.télécharger"></script>
+<script src="./Verbuggen Planning_files/firebase-database-compat.js.télécharger"></script>
 </head>
 <body>
 
@@ -196,10 +196,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;color:#1e293
   <div class="login-card">
     <h3>Qui êtes-vous ?</h3>
     <div class="role-btns">
-      <div class="role-btn" id="btn-chef" onclick="selectRole('chef')">
+      <div class="role-btn" id="btn-chef" onclick="selectRole(&#39;chef&#39;)">
         <span class="icon">👔</span>Chef de prod.
       </div>
-      <div class="role-btn" id="btn-pers" onclick="selectRole('personnel')">
+      <div class="role-btn" id="btn-pers" onclick="selectRole(&#39;personnel&#39;)">
         <span class="icon">👷</span>Personnel
       </div>
     </div>
@@ -215,7 +215,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;color:#1e293
       <div class="pin-error" id="login-pin-error"></div>
       <div class="pin-hint" id="login-pin-hint"></div>
     </div>
-    <button class="btn-login" id="btn-login" onclick="doLogin()" disabled>Entrer</button>
+    <button class="btn-login" id="btn-login" onclick="doLogin()" disabled="">Entrer</button>
   </div>
 </div>
 
@@ -224,11 +224,11 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;color:#1e293
   <div id="hdr">
     <h1>🪵 Semaine <span id="wnum">?</span></h1>
     <div class="wnav" id="week-nav" style="display:none">
-      <button onclick="chWk(-1)">&#9664;</button>
+      <button onclick="chWk(-1)">◀</button>
       <span id="winfo"></span>
-      <button onclick="chWk(1)">&#9654;</button>
+      <button onclick="chWk(1)">▶</button>
     </div>
-    <span id="fb-status" title="Firebase" style="font-size:12px;cursor:default">🔴</span> <div id="user-badge" onclick="logout()">👤 <span id="user-name-hdr"></span> · Déco</div>
+    <span id="fb-status" title="Firebase connecté" style="font-size:12px;cursor:default">🟢</span> <div id="user-badge" onclick="logout()">👤 <span id="user-name-hdr"></span> · Déco</div>
   </div>
   <div id="tabs"></div>
   <div id="clipbar">
@@ -247,9 +247,9 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:#f0f4f8;color:#1e293
     <div id="mfwrap">
       <div class="mlbl">Chantier</div>
       <div class="mf">
-        <input id="inum" placeholder="N° chantier" inputmode="numeric"/>
-        <input id="inom" placeholder="Nom client"/>
-        <input id="imbl" placeholder="Désignation meuble"/>
+        <input id="inum" placeholder="N° chantier" inputmode="numeric">
+        <input id="inom" placeholder="Nom client">
+        <input id="imbl" placeholder="Désignation meuble">
       </div>
       <div class="chips" id="chips"></div>
       <div class="mlbl">Couleur du chantier</div>
@@ -1283,5 +1283,5 @@ window.addEventListener('load', function() {
   initFirebase();
 });
 </script>
-</body>
-</html>
+
+</body></html>
