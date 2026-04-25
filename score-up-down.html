@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Score Up / Down</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    min-height: 100vh;
+    padding: 16px;
+    color: #fff;
+  }
+  .container { max-width: 500px; margin: 0 auto; }
+  h1 { text-align: center; font-size: 1.6rem; margin-bottom: 16px; font-weight: 700; letter-spacing: 0.5px; }
+
+  .session-bar {
+    background: rgba(0,0,0,0.3); border-radius: 12px; padding: 10px 12px;
+    margin-bottom: 14px; display: flex; align-items: center; gap: 8px; font-size: 14px;
+  }
+  .session-code {
+    font-family: 'Courier New', monospace; font-size: 22px; font-weight: 800;
+    letter-spacing: 4px; color: #ffd54f; flex: 1; text-align: center;
+  }
+  .session-bar button {
+    background: rgba(255,255,255,0.2); border: none; color: #fff;
+    padding: 6px 10px; border-radius: 8px; font-size: 13px; cursor: pointer; font-weight: 600;
+  }
+  .session-bar button:active { background: rgba(255,255,255,0.35); }
+
+  .status { text-align: center; font-size: 12px; margin-bottom: 12px; opacity: 0.8; }
+  .status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; background: #4ade80; }
+  .status.offline .dot { background: #f87171; }
+
+  .add-row { display: flex; gap: 8px; margin-bottom: 16px; }
+  .add-row input {
+    flex: 1; padding: 14px 16px; border: none; border-radius: 12px;
+    font-size: 16px; background: rgba(255,255,255,0.95); color: #222;
+  }
+  .add-row input:focus { outline: 2px solid #ffd54f; }
+  .add-row button {
+    padding: 14px 20px; border: none; border-radius: 12px;
+    background: #ffd54f; color: #1e3c72; font-weight: 700; font-size: 16px; cursor: pointer;
+  }
+
+  .player {
+    background: rgba(255,255,255,0.15); backdrop-filter: blur(10px);
+    border-radius: 16px; padding: 12px; margin-bottom: 12px;
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .row + .row { margin-top: 10px; }
+  .player-name {
+    flex: 1; background: transparent; border: none; color: #fff;
+    font-size: 17px; font-weight: 700; padding: 6px 4px; min-width: 0;
+  }
+  .player-name:focus { outline: none; background: rgba(255,255,255,0.1); border-radius: 6px; }
+
+  .group {
+    display: flex; align-items: center; gap: 6px; flex: 1;
+    background: rgba(0,0,0,0.2); border-radius: 12px; padding: 4px;
+  }
+  .label {
+    font-size: 11px; text-transform: uppercase; opacity: 0.8; font-weight: 700;
+    letter-spacing: 0.5px; padding-left: 6px; flex-shrink: 0;
+  }
+  .display {
+    flex: 1; text-align: center; font-size: 16px; font-weight: 800;
+    padding: 6px 4px; letter-spacing: 0.3px;
+  }
+  .hole-display { color: #fff; }
+  .score-up { color: #4ade80; }
+  .score-down { color: #f87171; }
+  .score-as { color: #fbbf24; }
+
+  .btn {
+    width: 38px; height: 38px; border: none; border-radius: 50%;
+    font-size: 22px; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; flex-shrink: 0;
+  }
+  .btn-up { background: #16a34a; }
+  .btn-up:active { background: #15803d; transform: scale(0.92); }
+  .btn-down { background: #dc2626; }
+  .btn-down:active { background: #b91c1c; transform: scale(0.92); }
+  .btn-hole { background: #475569; }
+  .btn-hole:active { background: #334155; transform: scale(0.92); }
+  .btn-del {
+    background: rgba(255,255,255,0.15); width: 30px; height: 30px; font-size: 14px;
+  }
+  .btn-del:active { background: rgba(255,255,255,0.3); }
+
+  .footer { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .footer button {
+    flex: 1; min-width: 100px; padding: 12px; border: none; border-radius: 12px;
+    background: rgba(255,255,255,0.15); color: #fff; font-weight: 600;
+    font-size: 14px; cursor: pointer; border: 1px solid rgba(255,255,255,0.25);
+  }
+  .footer button:active { background: rgba(255,255,255,0.25); }
+
+  .empty { text-align: center; padding: 40px 20px; opacity: 0.7; font-style: italic; }
+
+  /* Écran d'accueil */
+  .welcome {
+    background: rgba(255,255,255,0.15); border-radius: 16px; padding: 24px;
+    margin-top: 30px; border: 1px solid rgba(255,255,255,0.2);
+  }
+  .welcome h2 { font-size: 18px; margin-bottom: 14px; text-align: center; }
+  .welcome button.primary {
+    width: 100%; padding: 16px; background: #ffd54f; color: #1e3c72;
+    border: none; border-radius: 12px; font-size: 17px; font-weight: 700;
+    cursor: pointer; margin-bottom: 14px;
+  }
+  .divider { text-align: center; margin: 14px 0; opacity: 0.6; font-size: 13px; }
+  .join-row { display: flex; gap: 8px; }
+  .join-row input {
+    flex: 1; padding: 14px; border: none; border-radius: 12px;
+    font-size: 18px; font-weight: 700; text-align: center; letter-spacing: 4px;
+    text-transform: uppercase; font-family: 'Courier New', monospace;
+    background: rgba(255,255,255,0.95); color: #1e3c72;
+  }
+  .join-row button {
+    padding: 14px 18px; background: #16a34a; color: #fff;
+    border: none; border-radius: 12px; font-weight: 700; cursor: pointer; font-size: 15px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>⛳ Score Up / Down</h1>
+  <div id="app"></div>
+</div>
+
+<!-- Firebase SDK (compat, comme ton Planning) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+
+<script>
+  // ============================================================
+  //  Configuration Firebase (projet Verbruggen Planning)
+  // ============================================================
+  var firebaseConfig = {
+    apiKey: "AIzaSyAuXW6oBiNPw4W4lZoLPqjpVlLLwA6rt5Q",
+    authDomain: "verbruggen-planning.firebaseapp.com",
+    databaseURL: "https://verbruggen-planning-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "verbruggen-planning",
+    storageBucket: "verbruggen-planning.firebasestorage.app",
+    messagingSenderId: "506403938885",
+    appId: "1:506403938885:web:2dccdff0b8457036c4392c"
+  };
+
+  if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+  var db = firebase.database();
+
+  // --- État ---
+  var sessionCode = null;
+  var sessionRef = null;
+  var players = {};
+  var focusedInputId = null;
+  var caretPos = 0;
+
+  var appEl = document.getElementById('app');
+
+  // --- Code de session aléatoire (4 lettres lisibles) ---
+  function generateCode() {
+    var chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    var c = '';
+    for (var i = 0; i < 4; i++) c += chars[Math.floor(Math.random() * chars.length)];
+    return c;
+  }
+
+  function formatScore(s) {
+    if (!s || s === 0) return { text: 'AS',           cls: 'score-as'   };
+    if (s > 0)         return { text: s + ' UP',      cls: 'score-up'   };
+    return               { text: Math.abs(s) + ' DN', cls: 'score-down' };
+  }
+
+  // ====================================================
+  //  ÉCRAN D'ACCUEIL
+  // ====================================================
+  function renderWelcome() {
+    appEl.innerHTML =
+      '<div class="welcome">' +
+        '<h2>Démarre une partie</h2>' +
+        '<button class="primary" id="btnCreate">🆕 Créer une nouvelle session</button>' +
+        '<div class="divider">— ou —</div>' +
+        '<h2>Rejoindre une session</h2>' +
+        '<div class="join-row">' +
+          '<input id="joinInput" type="text" maxlength="4" placeholder="CODE" ' +
+                 'autocomplete="off" autocorrect="off" autocapitalize="characters">' +
+          '<button id="btnJoin">Rejoindre</button>' +
+        '</div>' +
+      '</div>';
+    document.getElementById('btnCreate').onclick = createSession;
+    document.getElementById('btnJoin').onclick = function() {
+      var v = document.getElementById('joinInput').value.trim().toUpperCase();
+      if (v.length === 4) joinSession(v);
+      else alert('Le code doit faire 4 caractères');
+    };
+    document.getElementById('joinInput').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') document.getElementById('btnJoin').click();
+    });
+  }
+
+  // ====================================================
+  //  CRÉER / REJOINDRE
+  // ====================================================
+  function createSession() {
+    var code = generateCode();
+    db.ref('golfSessions/' + code).set({
+      createdAt: firebase.database.ServerValue.TIMESTAMP,
+      players: {}
+    }).then(function() {
+      enterSession(code);
+    }).catch(function(e) {
+      alert('Erreur lors de la création : ' + e.message);
+    });
+  }
+
+  function joinSession(code) {
+    db.ref('golfSessions/' + code).once('value').then(function(snap) {
+      if (!snap.exists()) {
+        alert('Session introuvable. Vérifie le code.');
+        return;
+      }
+      enterSession(code);
+    }).catch(function(e) {
+      alert('Erreur de connexion : ' + e.message);
+    });
+  }
+
+  function enterSession(code) {
+    sessionCode = code;
+    history.replaceState(null, '', '?session=' + code);
+    try { localStorage.setItem('lastGolfSession', code); } catch(e) {}
+    subscribe();
+  }
+
+  function leaveSession() {
+    if (sessionRef) sessionRef.off();
+    sessionRef = null;
+    sessionCode = null;
+    players = {};
+    history.replaceState(null, '', location.pathname);
+    try { localStorage.removeItem('lastGolfSession'); } catch(e) {}
+    renderWelcome();
+  }
+
+  // ====================================================
+  //  ABONNEMENT TEMPS RÉEL
+  // ====================================================
+  function subscribe() {
+    sessionRef = db.ref('golfSessions/' + sessionCode + '/players');
+    sessionRef.on('value', function(snap) {
+      players = snap.val() || {};
+      renderGame();
+    }, function(err) {
+      console.error(err);
+      alert('Erreur de synchronisation : ' + err.message);
+    });
+  }
+
+  // ====================================================
+  //  ÉCRAN DE JEU
+  // ====================================================
+  function renderGame() {
+    // Préserve focus si on tape un nom
+    var active = document.activeElement;
+    if (active && active.classList && active.classList.contains('player-name')) {
+      focusedInputId = active.dataset.pid;
+      caretPos = active.selectionStart;
+    } else {
+      focusedInputId = null;
+    }
+
+    var ids = Object.keys(players).sort(function(a, b) {
+      return (players[a].order || 0) - (players[b].order || 0);
+    });
+
+    var list;
+    if (ids.length === 0) {
+      list = '<div class="empty">Ajoute un joueur pour commencer</div>';
+    } else {
+      list = ids.map(function(pid) {
+        var p = players[pid];
+        var f = formatScore(p.score || 0);
+        var hole = p.hole || 1;
+        var safeName = (p.name || '').replace(/"/g, '&quot;');
+        return '' +
+          '<div class="player">' +
+            '<div class="row">' +
+              '<button class="btn btn-del" data-act="del" data-pid="' + pid + '">✕</button>' +
+              '<input class="player-name" value="' + safeName + '" ' +
+                     'data-pid="' + pid + '" data-act="rename">' +
+            '</div>' +
+            '<div class="row">' +
+              '<div class="group">' +
+                '<span class="label">Trou</span>' +
+                '<button class="btn btn-hole" data-act="hole" data-pid="' + pid + '" data-d="-1">−</button>' +
+                '<div class="display hole-display">' + hole + '</div>' +
+                '<button class="btn btn-hole" data-act="hole" data-pid="' + pid + '" data-d="1">+</button>' +
+              '</div>' +
+              '<div class="group">' +
+                '<span class="label">Score</span>' +
+                '<button class="btn btn-down" data-act="score" data-pid="' + pid + '" data-d="-1">−</button>' +
+                '<div class="display ' + f.cls + '">' + f.text + '</div>' +
+                '<button class="btn btn-up" data-act="score" data-pid="' + pid + '" data-d="1">+</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+      }).join('');
+    }
+
+    appEl.innerHTML =
+      '<div class="session-bar">' +
+        '<span>Session :</span>' +
+        '<span class="session-code">' + sessionCode + '</span>' +
+        '<button id="btnShare">📤</button>' +
+        '<button id="btnLeave">Quitter</button>' +
+      '</div>' +
+      '<div class="status"><span class="dot"></span>Connecté en temps réel</div>' +
+      '<div class="add-row">' +
+        '<input id="newName" type="text" placeholder="Nom du joueur" maxlength="20">' +
+        '<button id="btnAdd">+ Ajouter</button>' +
+      '</div>' +
+      '<div id="players">' + list + '</div>' +
+      '<div class="footer">' +
+        '<button id="btnReset">🔄 Reset scores</button>' +
+        '<button id="btnShare2">📤 Partager</button>' +
+      '</div>';
+
+    // Restaurer focus
+    if (focusedInputId) {
+      var elFocus = document.querySelector('.player-name[data-pid="' + focusedInputId + '"]');
+      if (elFocus) {
+        elFocus.focus();
+        try { elFocus.setSelectionRange(caretPos, caretPos); } catch(e) {}
+      }
+    }
+
+    // Listeners
+    document.getElementById('btnAdd').onclick = addPlayer;
+    document.getElementById('newName').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') addPlayer();
+    });
+    document.getElementById('btnReset').onclick = resetScores;
+    document.getElementById('btnShare').onclick = shareSession;
+    document.getElementById('btnShare2').onclick = shareSession;
+    document.getElementById('btnLeave').onclick = leaveSession;
+
+    // Délégation pour les boutons par joueur
+    document.getElementById('players').addEventListener('click', function(e) {
+      var btn = e.target.closest('button');
+      if (!btn) return;
+      var pid = btn.dataset.pid;
+      var act = btn.dataset.act;
+      if (act === 'del')   removePlayer(pid);
+      if (act === 'score') changeScore(pid, parseInt(btn.dataset.d));
+      if (act === 'hole')  changeHole(pid, parseInt(btn.dataset.d));
+    });
+    document.getElementById('players').addEventListener('change', function(e) {
+      if (e.target.dataset && e.target.dataset.act === 'rename') {
+        renamePlayer(e.target.dataset.pid, e.target.value);
+      }
+    });
+  }
+
+  // ====================================================
+  //  ACTIONS (synchronisées Firebase)
+  // ====================================================
+  function addPlayer() {
+    var input = document.getElementById('newName');
+    var name = input.value.trim();
+    if (!name) return;
+    var maxOrder = 0;
+    for (var k in players) if (players[k].order > maxOrder) maxOrder = players[k].order;
+    var newRef = db.ref('golfSessions/' + sessionCode + '/players').push();
+    newRef.set({ name: name, score: 0, hole: 1, order: maxOrder + 1 });
+    input.value = '';
+  }
+
+  function removePlayer(pid) {
+    if (!confirm('Supprimer ' + (players[pid] && players[pid].name ? players[pid].name : '?') + ' ?')) return;
+    db.ref('golfSessions/' + sessionCode + '/players/' + pid).remove();
+  }
+
+  function renamePlayer(pid, name) {
+    var v = name.trim();
+    if (!v) return;
+    db.ref('golfSessions/' + sessionCode + '/players/' + pid).update({ name: v });
+  }
+
+  function changeScore(pid, d) {
+    var cur = (players[pid] && players[pid].score) || 0;
+    db.ref('golfSessions/' + sessionCode + '/players/' + pid).update({ score: cur + d });
+  }
+
+  function changeHole(pid, d) {
+    var h = ((players[pid] && players[pid].hole) || 1) + d;
+    if (h < 1) h = 1;
+    if (h > 18) h = 18;
+    db.ref('golfSessions/' + sessionCode + '/players/' + pid).update({ hole: h });
+  }
+
+  function resetScores() {
+    if (Object.keys(players).length === 0) return;
+    if (!confirm('Remettre tous les scores et trous à zéro pour TOUT le monde ?')) return;
+    var updates = {};
+    for (var pid in players) {
+      updates[pid + '/score'] = 0;
+      updates[pid + '/hole']  = 1;
+    }
+    db.ref('golfSessions/' + sessionCode + '/players').update(updates);
+  }
+
+  function shareSession() {
+    var url = location.origin + location.pathname + '?session=' + sessionCode;
+    var txt = '⛳ Rejoins ma partie de golf\nCode : ' + sessionCode + '\n' + url;
+    if (navigator.share) {
+      navigator.share({ title: 'Score Up/Down', text: txt, url: url }).catch(function(){});
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(txt).then(
+        function() { alert('Lien copié !\n\n' + txt); },
+        function() { alert(txt); }
+      );
+    } else {
+      alert(txt);
+    }
+  }
+
+  // ====================================================
+  //  DÉMARRAGE
+  // ====================================================
+  function start() {
+    var params = new URLSearchParams(location.search);
+    var fromUrl = params.get('session');
+    if (fromUrl && fromUrl.length === 4) {
+      joinSession(fromUrl.toUpperCase());
+      return;
+    }
+    var last = null;
+    try { last = localStorage.getItem('lastGolfSession'); } catch(e) {}
+    if (last) {
+      joinSession(last);
+      return;
+    }
+    renderWelcome();
+  }
+  start();
+</script>
+</body>
+</html>
