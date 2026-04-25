@@ -640,7 +640,7 @@
       ? '<span class="role-badge role-admin">ADMIN</span>'
       : '<span class="role-badge role-view">SPECTATEUR</span>';
     var resetBtn = isAdmin
-      ? '<button id="btnReset">🔄 Reset scores</button>'
+      ? '<button id="btnReset">🆕 Nouvelle partie</button>'
       : '';
     var addRow = isAdmin
       ? '<div class="add-row">' +
@@ -736,11 +736,8 @@
   }
   function resetScores() {
     if (!isAdmin) return;
-    if (Object.keys(players).length === 0) return;
-    if (!confirm('Remettre tous les scores et trous à zéro ?')) return;
-    var updates = {};
-    for (var pid in players) { updates[pid + '/score'] = 0; updates[pid + '/hole'] = 1; }
-    db.ref('golfSessions/' + sessionCode + '/players').update(updates);
+    if (!confirm('Nouvelle partie ?\n\nLes scores ET la liste des joueurs seront effacés.\nLes codes de session restent les mêmes.')) return;
+    db.ref('golfSessions/' + sessionCode + '/players').remove();
   }
 
   // ============================================================
