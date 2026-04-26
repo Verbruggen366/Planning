@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Score Golf ⛳</title>
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Score Golf">
+<meta name="theme-color" content="#1e3c72">
+<meta name="mobile-web-app-capable" content="yes">
+
+<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%231e3c72'/><stop offset='1' stop-color='%232a5298'/></linearGradient></defs><rect width='180' height='180' rx='40' fill='url(%23g)'/><text x='50%25' y='50%25' font-size='110' text-anchor='middle' dominant-baseline='central'>⛳</text></svg>">
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%231e3c72'/><text x='50%25' y='50%25' font-size='110' text-anchor='middle' dominant-baseline='central'>⛳</text></svg>">
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    min-height: 100vh;
+    padding: 12px;
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    color: #fff;
+  }
+  .container { max-width: 600px; margin: 0 auto; }
+
+  /* ===== HEADER ===== */
+  .header {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+  }
+  .header h1 { font-size: 1.4rem; font-weight: 800; flex: 1; letter-spacing: 0.3px; }
+  .header .club { font-size: 11px; opacity: 0.7; font-weight: 600; }
+  .role-badge {
+    font-size: 10px; font-weight: 800; padding: 4px 9px;
+    border-radius: 12px; letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  .role-admin { background: #dc2626; color: #fff; }
+  .role-fc    { background: #ca8a04; color: #fff; }
+  .role-spec  { background: #475569; color: #fff; }
+
+  /* ===== BOUTONS GENERIQUES ===== */
+  .btn-primary {
+    width: 100%; padding: 16px; background: #ffd54f; color: #1e3c72;
+    border: none; border-radius: 12px; font-size: 17px; font-weight: 700;
+    cursor: pointer; margin-bottom: 14px;
+  }
+  .btn-secondary {
+    padding: 12px; border: none; border-radius: 12px;
+    background: rgba(255,255,255,0.15); color: #fff; font-weight: 600;
+    font-size: 14px; cursor: pointer; border: 1px solid rgba(255,255,255,0.25);
+  }
+  .btn-secondary:active { background: rgba(255,255,255,0.3); }
+
+  /* ===== CARTES ===== */
+  .card {
+    background: rgba(255,255,255,0.15); backdrop-filter: blur(10px);
+    border-radius: 16px; padding: 16px; margin-bottom: 12px;
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+  .card h2 { font-size: 16px; margin-bottom: 12px; font-weight: 700; }
+  .card .hint { font-size: 11px; opacity: 0.75; margin-top: 8px; line-height: 1.4; }
+
+  /* ===== INPUTS ===== */
+  input.field {
+    width: 100%; padding: 14px 16px; border: none; border-radius: 12px;
+    font-size: 16px; background: rgba(255,255,255,0.95); color: #222;
+  }
+  input.field:focus { outline: 2px solid #ffd54f; }
+  input.code-field {
+    text-align: center; letter-spacing: 4px; text-transform: uppercase;
+    font-family: 'Courier New', monospace; font-weight: 700; font-size: 18px;
+  }
+  .lbl {
+    font-size: 11px; font-weight: 700; opacity: 0.85;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-top: 14px; margin-bottom: 6px;
+  }
+  .row-flex { display: flex; gap: 8px; }
+  .row-flex > input { flex: 1; }
+
+  /* ===== JOUEURS ===== */
+  .player {
+    background: rgba(255,255,255,0.12); border-radius: 14px;
+    padding: 10px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.15);
+  }
+  .player.won { background: rgba(74,222,128,0.18); border-color: rgba(74,222,128,0.5); }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .row + .row { margin-top: 8px; }
+  .player-name {
+    flex: 1; background: transparent; border: none; color: #fff;
+    font-size: 16px; font-weight: 700; padding: 4px 4px; min-width: 0;
+  }
+  .player-name:focus { outline: none; background: rgba(255,255,255,0.1); border-radius: 6px; }
+  .player-name[readonly] { pointer-events: none; }
+  .group {
+    display: flex; align-items: center; gap: 5px; flex: 1;
+    background: rgba(0,0,0,0.2); border-radius: 11px; padding: 4px;
+  }
+  .label {
+    font-size: 10px; text-transform: uppercase; opacity: 0.8; font-weight: 700;
+    letter-spacing: 0.5px; padding-left: 5px; flex-shrink: 0;
+  }
+  .display {
+    flex: 1; text-align: center; font-size: 15px; font-weight: 800;
+    padding: 5px 3px; letter-spacing: 0.3px;
+  }
+  .hole-display { color: #fff; }
+  .score-up { color: #4ade80; }
+  .score-down { color: #f87171; }
+  .score-as { color: #fbbf24; }
+  .score-won { color: #22c55e; font-size: 13px; }
+  .btn {
+    width: 34px; height: 34px; border: none; border-radius: 50%;
+    font-size: 20px; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; flex-shrink: 0;
+  }
+  .btn-up { background: #16a34a; }
+  .btn-up:active { background: #15803d; transform: scale(0.92); }
+  .btn-down { background: #dc2626; }
+  .btn-down:active { background: #b91c1c; transform: scale(0.92); }
+  .btn-hole { background: #475569; }
+  .btn-hole:active { background: #334155; transform: scale(0.92); }
+  .btn-trophy {
+    width: 32px; height: 32px; font-size: 16px;
+    background: rgba(255,213,79,0.25); border: 1px solid rgba(255,213,79,0.4);
+  }
+  .btn-trophy.on { background: #ffd54f; color: #1e3c72; }
+  .btn-trophy:active { transform: scale(0.92); }
+  .btn-del { background: rgba(255,255,255,0.15); width: 28px; height: 28px; font-size: 13px; }
+  .btn-del:active { background: rgba(255,255,255,0.3); }
+
+  /* ===== SCORE GENERAL ===== */
+  .score-banner {
+    background: rgba(0,0,0,0.35); border-radius: 14px;
+    padding: 12px 16px; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .score-banner .label {
+    font-size: 11px; opacity: 0.7; text-transform: uppercase;
+    letter-spacing: 0.5px; font-weight: 700;
+  }
+  .score-banner .value {
+    font-size: 28px; font-weight: 900; font-family: 'Courier New', monospace;
+    letter-spacing: 2px;
+  }
+  .score-banner.win  .value { color: #4ade80; }
+  .score-banner.lose .value { color: #f87171; }
+  .score-banner.tie  .value { color: #fbbf24; }
+  .score-banner .trophy { font-size: 28px; }
+  .score-banner .meta { font-size: 11px; opacity: 0.75; line-height: 1.3; flex: 1; }
+
+  /* ===== SPECTATEUR : LISTE IC + CARROUSEL ===== */
+  .ic-list {
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .ic-list-item {
+    background: rgba(255,255,255,0.12); border-radius: 12px;
+    padding: 12px 14px; display: flex; align-items: center; gap: 10px;
+    cursor: pointer; border: 1px solid rgba(255,255,255,0.15);
+  }
+  .ic-list-item:active { background: rgba(255,255,255,0.2); }
+  .ic-list-item .ic-name { flex: 1; font-weight: 700; font-size: 15px; }
+  .ic-list-item .ic-score {
+    font-family: 'Courier New', monospace; font-weight: 800;
+    font-size: 16px; letter-spacing: 1.5px;
+  }
+  .ic-list-item.win  .ic-score { color: #4ade80; }
+  .ic-list-item.lose .ic-score { color: #f87171; }
+  .ic-list-item.tie  .ic-score { color: #fbbf24; }
+  .ic-list-item .arrow { opacity: 0.5; font-size: 18px; }
+
+  .nav-bar {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
+    background: rgba(0,0,0,0.25); border-radius: 12px; padding: 6px;
+  }
+  .nav-bar .nav-arrow {
+    background: rgba(255,255,255,0.15); border: none; color: #fff;
+    width: 36px; height: 36px; border-radius: 8px; cursor: pointer;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .nav-bar .nav-arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+  .nav-bar .nav-arrow:active:not(:disabled) { background: rgba(255,255,255,0.3); }
+  .nav-bar .nav-title {
+    flex: 1; text-align: center; font-weight: 700; font-size: 14px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .dots {
+    display: flex; justify-content: center; gap: 6px;
+    margin-bottom: 14px; flex-wrap: wrap;
+  }
+  .dot {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: rgba(255,255,255,0.3); cursor: pointer;
+    transition: all 0.2s;
+  }
+  .dot.active { background: #ffd54f; transform: scale(1.4); }
+
+  /* ===== ADMIN : LISTE IC ===== */
+  .admin-ic-card {
+    background: rgba(255,255,255,0.15); border-radius: 14px;
+    padding: 12px 14px; margin-bottom: 10px;
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+  .admin-ic-head {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  }
+  .admin-ic-head .name { flex: 1; font-weight: 700; font-size: 15px; }
+  .admin-ic-meta {
+    font-size: 12px; opacity: 0.85; line-height: 1.5;
+  }
+  .admin-ic-meta .code-fc {
+    font-family: 'Courier New', monospace; font-weight: 800;
+    background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 6px;
+    color: #ffd54f; letter-spacing: 1px;
+  }
+  .admin-ic-actions {
+    display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;
+  }
+  .admin-ic-actions button {
+    flex: 1; min-width: 90px; padding: 9px 6px; font-size: 12px;
+    border: none; border-radius: 8px; cursor: pointer; font-weight: 700;
+  }
+  .btn-open  { background: #2563eb; color: #fff; }
+  .btn-edit  { background: rgba(255,255,255,0.2); color: #fff; }
+  .btn-share { background: #16a34a; color: #fff; }
+  .btn-trash { background: #dc2626; color: #fff; }
+
+  /* ===== MODAL ===== */
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+    z-index: 9998; display: none; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .modal-bg.show { display: flex; }
+  .modal {
+    background: #fff; color: #1e293b; border-radius: 16px;
+    padding: 22px; max-width: 420px; width: 100%;
+    max-height: 92vh; overflow-y: auto;
+  }
+  .modal h3 { font-size: 17px; font-weight: 800; margin-bottom: 14px; color: #1e3c72; }
+  .modal .lbl { color: #64748b; opacity: 1; }
+  .modal input.field { background: #f1f5f9; color: #1e293b; }
+  .modal input.field:focus { outline: 2px solid #2563eb; background: #fff; }
+  .code-box {
+    background: #f1f5f9; border-radius: 10px; padding: 12px;
+    margin: 6px 0; font-family: 'Courier New', monospace;
+    font-size: 14px; font-weight: 800; word-break: break-all;
+    text-align: center; letter-spacing: 1px; color: #1e3c72;
+    border: 2px dashed #cbd5e1;
+  }
+  .code-box.adm { background: #fef2f2; border-color: #fca5a5; color: #dc2626; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .modal-actions button {
+    flex: 1; min-width: 100px; padding: 11px; border: none; border-radius: 10px;
+    font-weight: 700; font-size: 13px; cursor: pointer;
+  }
+  .ma-primary { background: #2563eb; color: #fff; }
+  .ma-success { background: #16a34a; color: #fff; }
+  .ma-danger  { background: #dc2626; color: #fff; }
+  .ma-cancel  { background: #f1f5f9; color: #64748b; }
+
+  /* ===== BANNIÈRE iOS ===== */
+  #install-banner {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: #fff; color: #1e3c72;
+    padding: 14px 16px calc(14px + env(safe-area-inset-bottom)) 16px;
+    box-shadow: 0 -8px 30px rgba(0,0,0,0.4);
+    z-index: 9999; transform: translateY(100%);
+    transition: transform 0.4s cubic-bezier(.16,1,.3,1);
+    border-radius: 16px 16px 0 0;
+  }
+  #install-banner.show { transform: translateY(0); }
+  .ib-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .ib-icon {
+    width: 46px; height: 46px; border-radius: 11px;
+    background: linear-gradient(135deg, #1e3c72, #2a5298);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; flex-shrink: 0; box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+  }
+  .ib-text { flex: 1; }
+  .ib-title { font-size: 15px; font-weight: 800; line-height: 1.2; }
+  .ib-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+  .ib-close {
+    background: #f1f5f9; border: none; width: 28px; height: 28px;
+    border-radius: 50%; font-size: 14px; color: #64748b;
+    cursor: pointer; flex-shrink: 0;
+  }
+  .ib-steps { background: #f8fafc; border-radius: 10px; padding: 10px 12px;
+              font-size: 12px; line-height: 1.5; }
+  .ib-step { display: flex; align-items: center; gap: 8px; }
+  .ib-step + .ib-step { margin-top: 3px; }
+  .ib-num {
+    width: 20px; height: 20px; border-radius: 50%; background: #1e3c72;
+    color: #fff; font-weight: 800; font-size: 11px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .ib-share-icon {
+    display: inline-block; width: 16px; height: 20px;
+    background: #2563eb; color: #fff; border-radius: 4px;
+    text-align: center; font-size: 12px; line-height: 20px;
+    vertical-align: middle; margin: 0 2px;
+  }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 30px;
+    transform: translateX(-50%) translateY(20px);
+    background: #1e293b; color: #fff;
+    padding: 12px 22px; border-radius: 30px; font-size: 14px; font-weight: 600;
+    z-index: 10000; opacity: 0; transition: all 0.3s; pointer-events: none;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .empty { text-align: center; padding: 40px 20px; opacity: 0.7; font-style: italic; }
+  .small-link {
+    color: #ffd54f; font-size: 12px; text-decoration: underline;
+    background: none; border: none; cursor: pointer; padding: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="container" id="app"></div>
+
+<!-- Modal générique -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<!-- Bannière iOS -->
+<div id="install-banner">
+  <div class="ib-head">
+    <div class="ib-icon">⛳</div>
+    <div class="ib-text">
+      <div class="ib-title">Installer Score Golf</div>
+      <div class="ib-sub">Ajoute l'app à ton écran d'accueil</div>
+    </div>
+    <button class="ib-close" onclick="dismissBanner()">✕</button>
+  </div>
+  <div class="ib-steps">
+    <div class="ib-step"><div class="ib-num">1</div><div>Tape sur <span class="ib-share-icon">⬆</span> en bas de Safari</div></div>
+    <div class="ib-step"><div class="ib-num">2</div><div>Choisis <b>« Sur l'écran d'accueil »</b></div></div>
+    <div class="ib-step"><div class="ib-num">3</div><div>Tape <b>Ajouter</b> ✅</div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+
+<script>
+/* ============================================================
+   CONFIGURATION FIREBASE
+   ============================================================ */
+var firebaseConfig = {
+  apiKey: "AIzaSyAuXW6oBiNPw4W4lZoLPqjpVlLLwA6rt5Q",
+  authDomain: "verbruggen-planning.firebaseapp.com",
+  databaseURL: "https://verbruggen-planning-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "verbruggen-planning",
+  storageBucket: "verbruggen-planning.firebasestorage.app",
+  messagingSenderId: "506403938885",
+  appId: "1:506403938885:web:2dccdff0b8457036c4392c"
+};
+if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+var db = firebase.database();
+
+/* ============================================================
+   CONCEPTS
+   ============================================================
+   Tout est rangé sous un "club" dans Firebase :
+     /golfClubs/{clubId}
+       ├─ name           : "RWGC"
+       ├─ adminCode      : "ABCD42"   (4 lettres + 2 chiffres)
+       ├─ ics/{icId}
+       │    ├─ name      : "Men 1 vs Bercuit"
+       │    ├─ fcCode    : "MEN1"     (4 lettres)
+       │    ├─ nbMatches : 5..7       (= nb joueurs/matchs prévus)
+       │    └─ players/{pid}
+       │         ├─ name   : "Francis"
+       │         ├─ score  : -2..+5  (UP = +, DN = -)
+       │         ├─ hole   : 0..18
+       │         ├─ won    : true/false (toggle par le FC quand match terminé)
+       │         └─ order  : 1..N
+
+   URLs :
+     ?c=clubId                        → spectateur
+     ?c=clubId&fc=MEN1                → fore caddy d'un IC
+     ?c=clubId&a=ABCD42               → super-admin
+============================================================ */
+
+var state = {
+  clubId: null,
+  clubName: null,
+  adminCode: null,    // si admin
+  fcCode: null,       // si fore caddy
+  role: 'none',       // 'admin' | 'fc' | 'spec' | 'none'
+  ics: {},            // tous les IC du club
+  currentIcId: null,  // IC affiché (en mode spec/fc)
+  clubRef: null
+};
+
+var appEl = document.getElementById('app');
+
+/* ============================================================
+   UTILS
+   ============================================================ */
+function rand(chars, n) {
+  var s = '';
+  for (var i = 0; i < n; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+function genCode4()    { return rand('ABCDEFGHJKMNPQRSTUVWXYZ23456789', 4); }
+function genCode6()    { return genCode4() + rand('0123456789', 2); }
+function genClubId()   { return 'C' + Date.now().toString(36) + rand('abcdefghjkmnpqrstuvwxyz23456789', 4); }
+function genIcId()     { return 'I' + Date.now().toString(36) + rand('abcdefghjkmnpqrstuvwxyz23456789', 3); }
+
+function formatScore(s) {
+  if (!s || s === 0) return { text: 'AS', cls: 'score-as' };
+  if (s > 0)         return { text: s + ' UP', cls: 'score-up' };
+  return               { text: Math.abs(s) + ' DN', cls: 'score-down' };
+}
+
+/* Score général d'un IC : 1pt par joueur "won", 0,5 par AS si fini, sinon projeté UP/DN
+   Mais comme on suit le live : projection = nb UP + 0,5 par AS du côté nous */
+function computeIcScore(ic) {
+  var n = ic.nbMatches || (ic.players ? Object.keys(ic.players).length : 0);
+  var us = 0, them = 0;
+  if (!ic.players) return { us: 0, them: n, total: n, win: false, lose: true, tie: false, allDone: false };
+  var done = 0, totalPlayers = Object.keys(ic.players).length;
+  for (var pid in ic.players) {
+    var p = ic.players[pid];
+    if (p.won) { us += 1; done++; }
+    else if (p.score === 0 && p.hole >= 18) { us += 0.5; them += 0.5; done++; }
+    else {
+      // Match en cours : projection optimiste / pessimiste
+      // On compte 1 si UP, 0 si DN, 0.5 si AS
+      if ((p.score || 0) > 0)      us   += 1;     // projeté en notre faveur
+      else if ((p.score || 0) < 0) them += 1;     // projeté en leur faveur
+      else                         { us += 0.5; them += 0.5; } // AS projeté
+    }
+  }
+  var total = n;
+  var us2 = Math.round(us * 2) / 2;
+  var them2 = total - us2;
+  return {
+    us: us2, them: them2, total: total,
+    win:  us2 > total / 2,
+    lose: us2 < total / 2,
+    tie:  us2 === total / 2,
+    allDone: done === totalPlayers && totalPlayers > 0
+  };
+}
+function fmtScoreVal(v) {
+  return Math.round(v * 2) / 2 === Math.floor(v) ? String(Math.floor(v)) : (Math.floor(v) + '½');
+}
+
+/* ============================================================
+   ROUTING / DÉMARRAGE
+   ============================================================ */
+function start() {
+  var p = new URLSearchParams(location.search);
+  var clubId = p.get('c');
+  var adm    = p.get('a');
+  var fc     = p.get('fc');
+
+  if (!clubId) {
+    // Aucun club : essayer le dernier connu, sinon écran de bienvenue (création)
+    var lastClub = null, lastAdm = null;
+    try {
+      lastClub = localStorage.getItem('lastClub');
+      lastAdm  = localStorage.getItem('lastAdm');
+    } catch(e) {}
+    if (lastClub) {
+      // Reprendre la dernière session
+      enterClub(lastClub, lastAdm, null);
+    } else {
+      renderWelcome();
+    }
+  } else {
+    enterClub(clubId, adm, fc);
+  }
+  showInstallBanner();
+}
+
+function enterClub(clubId, adm, fc) {
+  state.clubId = clubId;
+  state.clubRef = db.ref('golfClubs/' + clubId);
+
+  // Récupérer le club + vérifier les codes
+  state.clubRef.once('value').then(function(snap) {
+    if (!snap.exists()) {
+      alert('Club introuvable. Vérifie le lien.');
+      renderWelcome();
+      return;
+    }
+    var club = snap.val();
+    state.clubName = club.name || 'Golf Club';
+
+    // Déterminer le rôle
+    if (adm && club.adminCode && adm.toUpperCase() === club.adminCode.toUpperCase()) {
+      state.role = 'admin';
+      state.adminCode = club.adminCode;
+      try {
+        localStorage.setItem('lastClub', clubId);
+        localStorage.setItem('lastAdm', club.adminCode);
+      } catch(e) {}
+    } else if (fc) {
+      // Trouver l'IC qui correspond à ce code Fore Caddy
+      var foundIc = null;
+      var icsObj = club.ics || {};
+      for (var icId in icsObj) {
+        if (icsObj[icId].fcCode && icsObj[icId].fcCode.toUpperCase() === fc.toUpperCase()) {
+          foundIc = icId;
+          break;
+        }
+      }
+      if (foundIc) {
+        state.role = 'fc';
+        state.fcCode = fc.toUpperCase();
+        state.currentIcId = foundIc;
+        try { localStorage.setItem('lastClub', clubId); } catch(e) {}
+      } else {
+        alert('Code Fore Caddy invalide. Connecté en spectateur.');
+        state.role = 'spec';
+      }
+    } else {
+      state.role = 'spec';
+      try { localStorage.setItem('lastClub', clubId); } catch(e) {}
+    }
+
+    // Mettre à jour l'URL pour garder le rôle au refresh
+    var newUrl = '?c=' + clubId;
+    if (state.role === 'admin') newUrl += '&a=' + state.adminCode;
+    if (state.role === 'fc')    newUrl += '&fc=' + state.fcCode;
+    history.replaceState(null, '', newUrl);
+
+    subscribeIcs();
+  }).catch(function(e) {
+    alert('Erreur : ' + e.message);
+    renderWelcome();
+  });
+}
+
+function subscribeIcs() {
+  state.clubRef.on('value', function(snap) {
+    if (!snap.exists()) {
+      alert('Le club a été supprimé.');
+      leaveClub();
+      return;
+    }
+    var club = snap.val();
+    state.clubName = club.name || 'Golf Club';
+    state.ics = club.ics || {};
+    // Si admin et code changé, on garde le nouveau
+    if (state.role === 'admin') state.adminCode = club.adminCode;
+    // Si FC : vérifier que son IC existe encore
+    if (state.role === 'fc' && state.currentIcId && !state.ics[state.currentIcId]) {
+      alert('Ta rencontre a été supprimée.');
+      leaveClub();
+      return;
+    }
+    render();
+  });
+}
+
+function leaveClub() {
+  if (state.clubRef) state.clubRef.off();
+  state = {
+    clubId: null, clubName: null, adminCode: null, fcCode: null,
+    role: 'none', ics: {}, currentIcId: null, clubRef: null
+  };
+  try {
+    localStorage.removeItem('lastClub');
+    localStorage.removeItem('lastAdm');
+  } catch(e) {}
+  history.replaceState(null, '', location.pathname);
+  renderWelcome();
+}
+
+/* ============================================================
+   RENDER ROUTER
+   ============================================================ */
+function render() {
+  if (state.role === 'admin') renderAdmin();
+  else if (state.role === 'fc') renderFc();
+  else renderSpectator();
+}
+
+/* ============================================================
+   ÉCRAN DE BIENVENUE
+   ============================================================ */
+function renderWelcome() {
+  appEl.innerHTML =
+    '<div class="header"><h1>⛳ Score Golf</h1></div>' +
+    '<div class="card">' +
+      '<h2>🆕 Créer un nouveau club</h2>' +
+      '<div class="lbl">Nom du club (ex : RWGC)</div>' +
+      '<input class="field" id="newClubName" placeholder="RWGC" maxlength="40">' +
+      '<button class="btn-primary" style="margin-top:14px" id="btnCreate">Créer le club</button>' +
+      '<div class="hint">Tu seras admin du club et tu pourras créer autant d\'interclubs (IC) que tu veux.</div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<h2>🔓 Rejoindre un club existant</h2>' +
+      '<div class="hint">Tu as un lien WhatsApp ? Ouvre-le directement, il contient déjà le code.</div>' +
+    '</div>';
+
+  document.getElementById('btnCreate').onclick = function() {
+    var name = document.getElementById('newClubName').value.trim();
+    if (!name) { alert('Donne un nom au club'); return; }
+    createClub(name);
+  };
+}
+
+function createClub(name) {
+  var clubId = genClubId();
+  var adminCode = genCode6();
+  db.ref('golfClubs/' + clubId).set({
+    name: name,
+    adminCode: adminCode,
+    createdAt: firebase.database.ServerValue.TIMESTAMP,
+    ics: {}
+  }).then(function() {
+    showToast('Club créé ! Code admin : ' + adminCode);
+    enterClub(clubId, adminCode, null);
+  }).catch(function(e) { alert('Erreur : ' + e.message); });
+}
+
+/* ============================================================
+   VUE ADMIN
+   ============================================================ */
+function renderAdmin() {
+  var icsArr = Object.keys(state.ics).map(function(id) {
+    return Object.assign({ id: id }, state.ics[id]);
+  }).sort(function(a, b) {
+    return (a.createdAt || 0) - (b.createdAt || 0);
+  });
+
+  var icsHtml;
+  if (icsArr.length === 0) {
+    icsHtml = '<div class="empty">Aucun IC créé. Tape sur « + Nouvel IC » pour commencer.</div>';
+  } else {
+    icsHtml = icsArr.map(function(ic) {
+      var sc = computeIcScore(ic);
+      var trophy = (sc.win && sc.allDone) ? '🏆 ' : '';
+      var nbPlayers = ic.players ? Object.keys(ic.players).length : 0;
+      var nbMatches = ic.nbMatches || nbPlayers || 0;
+      return '' +
+        '<div class="admin-ic-card">' +
+          '<div class="admin-ic-head">' +
+            '<div class="name">' + trophy + escapeHtml(ic.name) + '</div>' +
+          '</div>' +
+          '<div class="admin-ic-meta">' +
+            '⛳ ' + nbPlayers + '/' + nbMatches + ' joueurs · ' +
+            '<b>' + fmtScoreVal(sc.us) + ' - ' + fmtScoreVal(sc.them) + '</b>' +
+            '<br>Code Fore Caddy : <span class="code-fc">' + (ic.fcCode || '—') + '</span>' +
+          '</div>' +
+          '<div class="admin-ic-actions">' +
+            '<button class="btn-open"  data-act="open"   data-id="' + ic.id + '">⛳ Gérer</button>' +
+            '<button class="btn-share" data-act="share"  data-id="' + ic.id + '">📤 Partager</button>' +
+            '<button class="btn-edit"  data-act="edit"   data-id="' + ic.id + '">✏️ Modifier</button>' +
+            '<button class="btn-trash" data-act="del"    data-id="' + ic.id + '">🗑</button>' +
+          '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  appEl.innerHTML =
+    '<div class="header">' +
+      '<h1>' + escapeHtml(state.clubName) + '</h1>' +
+      '<span class="role-badge role-admin">ADMIN</span>' +
+    '</div>' +
+    '<button class="btn-primary" id="btnNewIc">+ Nouvel IC</button>' +
+    '<div>' + icsHtml + '</div>' +
+    '<div class="card" style="margin-top:20px">' +
+      '<div class="lbl">Code admin (à garder secret)</div>' +
+      '<div style="font-family:monospace;font-size:18px;font-weight:800;letter-spacing:3px;text-align:center;background:rgba(0,0,0,0.3);padding:10px;border-radius:10px;color:#fbbf24">' + state.adminCode + '</div>' +
+      '<div style="display:flex;gap:8px;margin-top:10px">' +
+        '<button class="btn-secondary" id="btnShareClub" style="flex:1">📤 Lien spectateur (tous IC)</button>' +
+        '<button class="btn-secondary" id="btnChangeAdm" style="flex:1">🔄 Changer code admin</button>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;margin-top:8px">' +
+        '<button class="btn-secondary" id="btnRenameClub" style="flex:1">✏️ Renommer club</button>' +
+        '<button class="btn-secondary" id="btnLeave" style="flex:1">🚪 Quitter</button>' +
+      '</div>' +
+    '</div>';
+
+  document.getElementById('btnNewIc').onclick = openNewIcModal;
+  document.getElementById('btnShareClub').onclick = openShareClubModal;
+  document.getElementById('btnChangeAdm').onclick = changeAdminCode;
+  document.getElementById('btnRenameClub').onclick = renameClub;
+  document.getElementById('btnLeave').onclick = function() {
+    if (confirm('Quitter ? (tu pourras revenir avec ton lien admin)')) leaveClub();
+  };
+
+  // Events sur les actions des IC
+  document.querySelectorAll('.admin-ic-actions button').forEach(function(b) {
+    b.onclick = function() {
+      var act = b.dataset.act, id = b.dataset.id;
+      if (act === 'open')  openIcAsAdmin(id);
+      if (act === 'share') openShareIcModal(id);
+      if (act === 'edit')  openEditIcModal(id);
+      if (act === 'del')   deleteIc(id);
+    };
+  });
+}
+
+/* Vue admin "à l'intérieur d'un IC" : reuse de la vue FC mais avec power admin */
+var adminViewingIc = null;
+function openIcAsAdmin(icId) {
+  adminViewingIc = icId;
+  renderIcDetail(icId, true);
+}
+function backToAdminList() {
+  adminViewingIc = null;
+  render();
+}
+
+/* ============================================================
+   VUE FORE CADDY (et admin dans un IC)
+   ============================================================ */
+function renderFc() {
+  if (!state.currentIcId || !state.ics[state.currentIcId]) {
+    appEl.innerHTML = '<div class="card"><div class="empty">Rencontre introuvable</div></div>';
+    return;
+  }
+  renderIcDetail(state.currentIcId, false);
+}
+
+function renderIcDetail(icId, isAdminView) {
+  var ic = state.ics[icId];
+  if (!ic) return;
+  var sc = computeIcScore(ic);
+
+  var playersHtml = '';
+  var pids = Object.keys(ic.players || {}).sort(function(a, b) {
+    return ((ic.players[a] && ic.players[a].order) || 0) - ((ic.players[b] && ic.players[b].order) || 0);
+  });
+
+  if (pids.length === 0) {
+    playersHtml = '<div class="empty">' +
+                    (isAdminView ? 'Ajoute un joueur ci-dessous'
+                                 : 'L\'admin doit ajouter des joueurs') +
+                  '</div>';
+  } else {
+    playersHtml = pids.map(function(pid) {
+      var p = ic.players[pid];
+      var f = formatScore(p.score || 0);
+      var won = !!p.won;
+      var safeName = escapeHtml(p.name || '');
+
+      var delBtn = isAdminView
+        ? '<button class="btn btn-del" data-act="del" data-pid="' + pid + '">✕</button>'
+        : '';
+      var nameAttr = isAdminView ? 'data-act="rename"' : 'readonly';
+      var trophyBtn = '<button class="btn btn-trophy ' + (won ? 'on' : '') + '" data-act="trophy" data-pid="' + pid + '" title="Match gagné">🏆</button>';
+
+      return '' +
+        '<div class="player ' + (won ? 'won' : '') + '">' +
+          '<div class="row">' +
+            delBtn +
+            '<input class="player-name" value="' + safeName + '" data-pid="' + pid + '" ' + nameAttr + '>' +
+            trophyBtn +
+          '</div>' +
+          '<div class="row">' +
+            '<div class="group">' +
+              '<span class="label">Trou</span>' +
+              '<button class="btn btn-hole" data-act="hole" data-pid="' + pid + '" data-d="-1">−</button>' +
+              '<div class="display hole-display">' + (p.hole || 0) + '</div>' +
+              '<button class="btn btn-hole" data-act="hole" data-pid="' + pid + '" data-d="1">+</button>' +
+            '</div>' +
+            '<div class="group">' +
+              '<span class="label">Score</span>' +
+              '<button class="btn btn-down" data-act="score" data-pid="' + pid + '" data-d="-1">−</button>' +
+              '<div class="display ' + (won ? 'score-won' : f.cls) + '">' + (won ? 'GAGNÉ' : f.text) + '</div>' +
+              '<button class="btn btn-up" data-act="score" data-pid="' + pid + '" data-d="1">+</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  // Bandeau score général
+  var scClass = sc.win ? 'win' : (sc.lose ? 'lose' : 'tie');
+  var scoreLabel = sc.allDone ? 'Score final' : 'Score projeté';
+  var trophy = (sc.win && sc.allDone) ? '<div class="trophy">🏆</div>' : '';
+
+  // Bouton retour si admin
+  var topBar;
+  if (isAdminView) {
+    topBar = '<div class="header">' +
+               '<button class="btn-secondary" id="btnBack" style="padding:8px 14px">‹ Retour</button>' +
+               '<h1 style="font-size:1.1rem">' + escapeHtml(ic.name) + '</h1>' +
+               '<span class="role-badge role-admin">ADMIN</span>' +
+             '</div>';
+  } else {
+    topBar = '<div class="header">' +
+               '<h1 style="font-size:1.1rem">' + escapeHtml(state.clubName) + ' · ' + escapeHtml(ic.name) + '</h1>' +
+               '<span class="role-badge role-fc">FORE CADDY</span>' +
+             '</div>';
+  }
+
+  // Champ ajout joueur (admin uniquement)
+  var addRow = isAdminView
+    ? '<div class="row-flex" style="margin-bottom:14px">' +
+        '<input class="field" id="newPlayerName" placeholder="Nom du joueur" maxlength="20">' +
+        '<button class="btn-secondary" id="btnAddPlayer" style="padding:14px 18px;background:#ffd54f;color:#1e3c72">+ Ajouter</button>' +
+      '</div>'
+    : '';
+
+  var bottomBtns = isAdminView
+    ? '<div style="display:flex;gap:8px;margin-top:14px">' +
+        '<button class="btn-secondary" id="btnReset" style="flex:1">🔄 Reset scores</button>' +
+        '<button class="btn-secondary" id="btnShareIc" style="flex:1">📤 Partager FC</button>' +
+      '</div>'
+    : '<div style="text-align:center;margin-top:14px">' +
+        '<button class="small-link" onclick="leaveClub()">Quitter</button>' +
+      '</div>';
+
+  appEl.innerHTML =
+    topBar +
+    '<div class="score-banner ' + scClass + '">' +
+      trophy +
+      '<div>' +
+        '<div class="label">' + scoreLabel + '</div>' +
+        '<div class="value">' + fmtScoreVal(sc.us) + '–' + fmtScoreVal(sc.them) + '</div>' +
+      '</div>' +
+      '<div class="meta">sur ' + sc.total + ' matchs<br>(nous - eux)</div>' +
+    '</div>' +
+    addRow +
+    '<div id="players-list">' + playersHtml + '</div>' +
+    bottomBtns;
+
+  if (isAdminView) {
+    document.getElementById('btnBack').onclick = backToAdminList;
+    document.getElementById('btnAddPlayer').onclick = function() { addPlayer(icId); };
+    document.getElementById('newPlayerName').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') addPlayer(icId);
+    });
+    document.getElementById('btnReset').onclick  = function() { resetIc(icId); };
+    document.getElementById('btnShareIc').onclick = function() { openShareIcModal(icId); };
+  }
+
+  // Délégation clics
+  document.getElementById('players-list').addEventListener('click', function(e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    var act = b.dataset.act, pid = b.dataset.pid;
+    if (act === 'del'    && isAdminView) removePlayer(icId, pid);
+    if (act === 'score')                 changeScore(icId, pid, parseInt(b.dataset.d));
+    if (act === 'hole')                  changeHole(icId, pid, parseInt(b.dataset.d));
+    if (act === 'trophy')                toggleWon(icId, pid);
+  });
+  document.getElementById('players-list').addEventListener('change', function(e) {
+    if (e.target.dataset && e.target.dataset.act === 'rename' && isAdminView) {
+      renamePlayer(icId, e.target.dataset.pid, e.target.value);
+    }
+  });
+}
+
+/* ============================================================
+   VUE SPECTATEUR : carrousel d'IC + flèches + dots
+   ============================================================ */
+function renderSpectator() {
+  var icsArr = Object.keys(state.ics).map(function(id) {
+    return Object.assign({ id: id }, state.ics[id]);
+  }).sort(function(a, b) {
+    return (a.createdAt || 0) - (b.createdAt || 0);
+  });
+
+  if (icsArr.length === 0) {
+    appEl.innerHTML =
+      '<div class="header"><h1>⛳ ' + escapeHtml(state.clubName) + '</h1>' +
+      '<span class="role-badge role-spec">SPECTATEUR</span></div>' +
+      '<div class="card"><div class="empty">Aucune rencontre en cours</div></div>';
+    return;
+  }
+
+  // Index courant
+  if (!state.currentIcId || !state.ics[state.currentIcId]) {
+    state.currentIcId = icsArr[0].id;
+  }
+  var idx = 0;
+  for (var i = 0; i < icsArr.length; i++) {
+    if (icsArr[i].id === state.currentIcId) { idx = i; break; }
+  }
+  var ic = icsArr[idx];
+  var sc = computeIcScore(ic);
+  var scClass = sc.win ? 'win' : (sc.lose ? 'lose' : 'tie');
+  var scoreLabel = sc.allDone ? 'Score final' : 'Score projeté';
+  var trophy = (sc.win && sc.allDone) ? '<div class="trophy">🏆</div>' : '';
+
+  var pids = Object.keys(ic.players || {}).sort(function(a, b) {
+    return ((ic.players[a] && ic.players[a].order) || 0) - ((ic.players[b] && ic.players[b].order) || 0);
+  });
+  var playersHtml = pids.length === 0
+    ? '<div class="empty">Pas de joueurs</div>'
+    : pids.map(function(pid) {
+        var p = ic.players[pid];
+        var f = formatScore(p.score || 0);
+        var won = !!p.won;
+        return '' +
+          '<div class="player ' + (won ? 'won' : '') + '">' +
+            '<div class="row">' +
+              '<div class="player-name">' + escapeHtml(p.name || '') + '</div>' +
+              (won ? '<span style="font-size:18px">🏆</span>' : '') +
+            '</div>' +
+            '<div class="row">' +
+              '<div class="group">' +
+                '<span class="label">Trou</span>' +
+                '<div class="display hole-display" style="padding:8px">' + (p.hole || 0) + '</div>' +
+              '</div>' +
+              '<div class="group">' +
+                '<span class="label">Score</span>' +
+                '<div class="display ' + (won ? 'score-won' : f.cls) + '" style="padding:8px">' +
+                  (won ? 'GAGNÉ' : f.text) +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+      }).join('');
+
+  // Dots / flèches : seulement si > 1 IC
+  var navHtml = '';
+  if (icsArr.length > 1) {
+    var dots = icsArr.map(function(x, i) {
+      return '<div class="dot ' + (i === idx ? 'active' : '') + '" data-i="' + i + '"></div>';
+    }).join('');
+    navHtml =
+      '<div class="nav-bar">' +
+        '<button class="nav-arrow" id="btnPrev" ' + (idx === 0 ? 'disabled' : '') + '>‹</button>' +
+        '<div class="nav-title">' + escapeHtml(ic.name) + ' (' + (idx + 1) + '/' + icsArr.length + ')</div>' +
+        '<button class="nav-arrow" id="btnNext" ' + (idx === icsArr.length - 1 ? 'disabled' : '') + '>›</button>' +
+      '</div>' +
+      '<div class="dots">' + dots + '</div>';
+  } else {
+    navHtml = '<div style="text-align:center;font-weight:700;font-size:14px;margin-bottom:14px;opacity:0.85">' +
+              escapeHtml(ic.name) + '</div>';
+  }
+
+  appEl.innerHTML =
+    '<div class="header">' +
+      '<h1>⛳ ' + escapeHtml(state.clubName) + '</h1>' +
+      '<span class="role-badge role-spec">SPECTATEUR</span>' +
+    '</div>' +
+    navHtml +
+    '<div class="score-banner ' + scClass + '">' +
+      trophy +
+      '<div>' +
+        '<div class="label">' + scoreLabel + '</div>' +
+        '<div class="value">' + fmtScoreVal(sc.us) + '–' + fmtScoreVal(sc.them) + '</div>' +
+      '</div>' +
+      '<div class="meta">sur ' + sc.total + ' matchs<br>(nous - eux)</div>' +
+    '</div>' +
+    '<div>' + playersHtml + '</div>' +
+    '<div style="text-align:center;margin-top:14px">' +
+      '<button class="small-link" onclick="leaveClub()">Quitter</button>' +
+    '</div>';
+
+  if (icsArr.length > 1) {
+    document.getElementById('btnPrev').onclick = function() {
+      if (idx > 0) { state.currentIcId = icsArr[idx - 1].id; render(); }
+    };
+    document.getElementById('btnNext').onclick = function() {
+      if (idx < icsArr.length - 1) { state.currentIcId = icsArr[idx + 1].id; render(); }
+    };
+    document.querySelectorAll('.dot').forEach(function(d) {
+      d.onclick = function() {
+        state.currentIcId = icsArr[parseInt(d.dataset.i)].id;
+        render();
+      };
+    });
+  }
+}
+
+/* ============================================================
+   ACTIONS sur Firebase
+   ============================================================ */
+function addPlayer(icId) {
+  var input = document.getElementById('newPlayerName');
+  var name = input.value.trim();
+  if (!name) return;
+  var ic = state.ics[icId];
+  var maxOrder = 0;
+  if (ic.players) for (var k in ic.players) if (ic.players[k].order > maxOrder) maxOrder = ic.players[k].order;
+  var newRef = state.clubRef.child('ics/' + icId + '/players').push();
+  newRef.set({ name: name, score: 0, hole: 0, won: false, order: maxOrder + 1 });
+  input.value = '';
+}
+function removePlayer(icId, pid) {
+  var name = (state.ics[icId].players[pid] && state.ics[icId].players[pid].name) || '?';
+  if (!confirm('Supprimer ' + name + ' ?')) return;
+  state.clubRef.child('ics/' + icId + '/players/' + pid).remove();
+}
+function renamePlayer(icId, pid, name) {
+  var v = name.trim();
+  if (!v) return;
+  state.clubRef.child('ics/' + icId + '/players/' + pid).update({ name: v });
+}
+function changeScore(icId, pid, d) {
+  var p = state.ics[icId].players[pid];
+  var cur = (p && p.score) || 0;
+  state.clubRef.child('ics/' + icId + '/players/' + pid).update({ score: cur + d });
+}
+function changeHole(icId, pid, d) {
+  var p = state.ics[icId].players[pid];
+  var h = ((p && p.hole) || 0) + d;
+  if (h < 0) h = 0;
+  if (h > 18) h = 18;
+  state.clubRef.child('ics/' + icId + '/players/' + pid).update({ hole: h });
+}
+function toggleWon(icId, pid) {
+  var p = state.ics[icId].players[pid];
+  var newWon = !p.won;
+  state.clubRef.child('ics/' + icId + '/players/' + pid).update({ won: newWon });
+}
+function resetIc(icId) {
+  if (!confirm('Reset scores de cet IC ?\n(les joueurs sont gardés, scores remis à 0)')) return;
+  var p = state.ics[icId].players || {};
+  var updates = {};
+  for (var pid in p) {
+    updates[pid + '/score'] = 0;
+    updates[pid + '/hole']  = 0;
+    updates[pid + '/won']   = false;
+  }
+  state.clubRef.child('ics/' + icId + '/players').update(updates);
+}
+function deleteIc(icId) {
+  var name = state.ics[icId].name || '?';
+  if (!confirm('Supprimer définitivement « ' + name + ' » ?')) return;
+  state.clubRef.child('ics/' + icId).remove();
+}
+
+/* ============================================================
+   MODALS : créer/modifier IC, partage, etc.
+   ============================================================ */
+function showModal(html) {
+  document.getElementById('modal-content').innerHTML = html;
+  document.getElementById('modal-bg').classList.add('show');
+}
+function hideModal() {
+  document.getElementById('modal-bg').classList.remove('show');
+}
+document.getElementById('modal-bg').addEventListener('click', function(e) {
+  if (e.target === document.getElementById('modal-bg')) hideModal();
+});
+
+function openNewIcModal() {
+  showModal(
+    '<h3>+ Nouvel interclub</h3>' +
+    '<div class="lbl">Nom de la rencontre</div>' +
+    '<input class="field" id="m-icname" placeholder="Ex : Men 1 vs Bercuit" maxlength="40">' +
+    '<div class="lbl">Nombre de matchs (5 à 7)</div>' +
+    '<input class="field" id="m-nbm" type="number" min="5" max="7" value="5">' +
+    '<div class="modal-actions">' +
+      '<button class="ma-cancel" onclick="hideModal()">Annuler</button>' +
+      '<button class="ma-success" id="m-ok">Créer</button>' +
+    '</div>'
+  );
+  document.getElementById('m-ok').onclick = function() {
+    var n = document.getElementById('m-icname').value.trim();
+    var nbm = parseInt(document.getElementById('m-nbm').value);
+    if (!n) { alert('Donne un nom à la rencontre'); return; }
+    if (nbm < 5 || nbm > 7) { alert('Nombre de matchs entre 5 et 7'); return; }
+    var icId = genIcId();
+    state.clubRef.child('ics/' + icId).set({
+      name: n,
+      nbMatches: nbm,
+      fcCode: genCode4(),
+      createdAt: firebase.database.ServerValue.TIMESTAMP,
+      players: {}
+    }).then(function() {
+      hideModal();
+      showToast('IC créé : ' + n);
+    }).catch(function(e) { alert('Erreur : ' + e.message); });
+  };
+}
+
+function openEditIcModal(icId) {
+  var ic = state.ics[icId];
+  showModal(
+    '<h3>✏️ Modifier l\'IC</h3>' +
+    '<div class="lbl">Nom de la rencontre</div>' +
+    '<input class="field" id="m-icname" value="' + escapeHtml(ic.name) + '" maxlength="40">' +
+    '<div class="lbl">Nombre de matchs (5 à 7)</div>' +
+    '<input class="field" id="m-nbm" type="number" min="5" max="7" value="' + (ic.nbMatches || 5) + '">' +
+    '<div class="lbl">Code Fore Caddy</div>' +
+    '<input class="field code-field" id="m-fc" value="' + escapeHtml(ic.fcCode || '') + '" maxlength="4">' +
+    '<div style="margin-top:6px;text-align:center"><button class="small-link" style="color:#2563eb" id="m-regen">🎲 Générer un nouveau code</button></div>' +
+    '<div class="modal-actions">' +
+      '<button class="ma-cancel" onclick="hideModal()">Annuler</button>' +
+      '<button class="ma-primary" id="m-ok">Enregistrer</button>' +
+    '</div>'
+  );
+  document.getElementById('m-regen').onclick = function() {
+    document.getElementById('m-fc').value = genCode4();
+  };
+  document.getElementById('m-ok').onclick = function() {
+    var n = document.getElementById('m-icname').value.trim();
+    var nbm = parseInt(document.getElementById('m-nbm').value);
+    var fc = document.getElementById('m-fc').value.trim().toUpperCase();
+    if (!n) { alert('Donne un nom'); return; }
+    if (nbm < 5 || nbm > 7) { alert('Nombre de matchs entre 5 et 7'); return; }
+    if (fc.length !== 4) { alert('Le code FC doit faire 4 caractères'); return; }
+    state.clubRef.child('ics/' + icId).update({
+      name: n, nbMatches: nbm, fcCode: fc
+    }).then(function() {
+      hideModal();
+      showToast('IC modifié');
+    });
+  };
+}
+
+function openShareClubModal() {
+  var url = location.origin + location.pathname + '?c=' + state.clubId;
+  showModal(
+    '<h3>📤 Partager le club (spectateur)</h3>' +
+    '<div style="font-size:13px;color:#64748b;margin-bottom:8px">Ce lien permet de voir TOUS les IC du club, sans pouvoir modifier.</div>' +
+    '<div class="code-box">' + url + '</div>' +
+    '<div class="modal-actions">' +
+      '<button class="ma-cancel" onclick="hideModal()">Fermer</button>' +
+      '<button class="ma-success" onclick="copyText(\'' + url + '\', \'Lien spectateur copié !\')">📋 Copier</button>' +
+    '</div>'
+  );
+}
+
+function openShareIcModal(icId) {
+  var ic = state.ics[icId];
+  var specUrl  = location.origin + location.pathname + '?c=' + state.clubId;
+  var fcUrl    = location.origin + location.pathname + '?c=' + state.clubId + '&fc=' + ic.fcCode;
+  showModal(
+    '<h3>📤 Partager « ' + escapeHtml(ic.name) + ' »</h3>' +
+
+    '<div class="lbl">🟢 Lien spectateur (tous IC du club)</div>' +
+    '<div class="code-box">' + specUrl + '</div>' +
+    '<div style="text-align:center;margin-bottom:10px">' +
+      '<button class="small-link" style="color:#16a34a" onclick="copyText(\'' + specUrl + '\', \'Lien spectateur copié !\')">📋 Copier ce lien</button>' +
+    '</div>' +
+
+    '<div class="lbl">⛳ Lien Fore Caddy (modifie cet IC)</div>' +
+    '<div class="code-box adm">' + fcUrl + '</div>' +
+    '<div style="font-size:12px;color:#64748b;margin:4px 0 8px">Code FC : <b>' + ic.fcCode + '</b></div>' +
+    '<div style="text-align:center;margin-bottom:10px">' +
+      '<button class="small-link" style="color:#dc2626" onclick="copyText(\'' + fcUrl + '\', \'Lien Fore Caddy copié !\')">📋 Copier ce lien</button>' +
+    '</div>' +
+
+    '<div class="modal-actions">' +
+      '<button class="ma-cancel" onclick="hideModal()">Fermer</button>' +
+    '</div>'
+  );
+}
+
+function changeAdminCode() {
+  if (!confirm('Générer un nouveau code admin ?\n\nL\'ancien lien admin ne fonctionnera plus.\nNote bien le nouveau code !')) return;
+  var newCode = genCode6();
+  state.clubRef.update({ adminCode: newCode }).then(function() {
+    state.adminCode = newCode;
+    try { localStorage.setItem('lastAdm', newCode); } catch(e) {}
+    history.replaceState(null, '', '?c=' + state.clubId + '&a=' + newCode);
+    showToast('Nouveau code admin : ' + newCode);
+    render();
+  });
+}
+
+function renameClub() {
+  var name = prompt('Nouveau nom du club :', state.clubName);
+  if (!name || !name.trim()) return;
+  state.clubRef.update({ name: name.trim() });
+}
+
+/* ============================================================
+   UTILS UI
+   ============================================================ */
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function copyText(txt, msg) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(txt).then(
+      function() { showToast(msg); },
+      function() { prompt('Copie ce lien :', txt); }
+    );
+  } else { prompt('Copie ce lien :', txt); }
+}
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, 2500);
+}
+
+/* ============================================================
+   BANNIÈRE iOS
+   ============================================================ */
+function isIOS()        { return /iPhone|iPad|iPod/i.test(navigator.userAgent) && !window.MSStream; }
+function isStandalone() { return window.navigator.standalone === true ||
+                                 window.matchMedia('(display-mode: standalone)').matches; }
+function dismissBanner() {
+  document.getElementById('install-banner').classList.remove('show');
+  try { localStorage.setItem('installBannerDismissed', Date.now()); } catch(e) {}
+}
+function showInstallBanner() {
+  if (!isIOS() || isStandalone()) return;
+  var dismissed = 0;
+  try { dismissed = parseInt(localStorage.getItem('installBannerDismissed') || '0'); } catch(e) {}
+  if (dismissed && (Date.now() - dismissed) < 7 * 24 * 3600 * 1000) return;
+  setTimeout(function() { document.getElementById('install-banner').classList.add('show'); }, 1500);
+}
+
+/* DÉMARRAGE */
+start();
+</script>
+</body>
+</html>
