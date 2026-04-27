@@ -143,6 +143,11 @@
   }
   .btn-trophy.on { background: #ffd54f; color: #1e3c72; }
   .btn-trophy:active { transform: scale(0.92); }
+  .btn-history {
+    width: 32px; height: 32px; font-size: 14px;
+    background: rgba(139,92,246,0.25); border: 1px solid rgba(139,92,246,0.4);
+  }
+  .btn-history:active { background: rgba(139,92,246,0.5); transform: scale(0.92); }
   .btn-del { background: rgba(255,255,255,0.15); width: 28px; height: 28px; font-size: 13px; }
   .btn-del:active { background: rgba(255,255,255,0.3); }
 
@@ -1000,6 +1005,9 @@ function renderAdmin() {
         '<button class="btn-secondary" id="btnDownload" style="flex:1;background:rgba(74,222,128,0.25);border-color:rgba(74,222,128,0.5)">💾 Sauvegarder tous les codes (.txt)</button>' +
       '</div>' +
       '<div style="display:flex;gap:8px;margin-top:8px">' +
+        '<button class="btn-secondary" id="btnArchives" style="flex:1;background:rgba(139,92,246,0.25);border-color:rgba(139,92,246,0.5)">📁 Historique (journées passées)</button>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;margin-top:8px">' +
         '<button class="btn-secondary" id="btnRenameClub" style="flex:1">✏️ Renommer club</button>' +
         '<button class="btn-secondary" id="btnBackSpec" style="flex:1">👁 Mode spectateur</button>' +
       '</div>' +
@@ -1016,6 +1024,7 @@ function renderAdmin() {
   document.getElementById('btnShareClub').onclick = openShareClubModal;
   document.getElementById('btnChangeAdm').onclick = changeAdminCode;
   document.getElementById('btnDownload').onclick = downloadCodes;
+  document.getElementById('btnArchives').onclick = openArchivesModal;
   document.getElementById('btnRenameClub').onclick = renameClub;
   document.getElementById('btnBackSpec').onclick = backToSpectator;
   var btnRoleTop = document.getElementById('btnRoleSwitchTop');
@@ -1091,6 +1100,7 @@ function renderCapOtherIc(icId) {
                         : status === 'lost' ? '❌ Terminé'
                         :                     'En cours';
         var statusBadge = '<span class="status-btn ' + status + ' readonly">' + statusLabel + '</span>';
+        var histBtn = '<button class="btn btn-history" data-act="history" data-pid="' + pid + '" title="Historique">📊</button>';
         var scoreDisplay;
         if (status === 'won')       scoreDisplay = '<div class="display score-won" style="padding:8px">GAGNÉ</div>';
         else if (status === 'lost') scoreDisplay = '<div class="display score-down" style="padding:8px">PERDU</div>';
@@ -1098,6 +1108,7 @@ function renderCapOtherIc(icId) {
         return '<div class="player ' + status + '">' +
           '<div class="row">' +
             '<div class="player-name">' + escapeHtml(p.name || '') + '</div>' +
+            histBtn +
             statusBadge +
           '</div>' +
           '<div class="row">' +
@@ -1166,6 +1177,12 @@ function renderCapOtherIc(icId) {
       d.onclick = function() { state.fcViewingIc = icsArr[parseInt(d.dataset.i)].id; render(); };
     });
   }
+  // Historique joueur
+  document.querySelectorAll('[data-act="history"]').forEach(function(btn) {
+    btn.onclick = function() {
+      openPlayerHistoryModal(ic.id, btn.dataset.pid);
+    };
+  });
   window.scrollTo(0, savedScroll);
 }
 
@@ -1263,6 +1280,7 @@ function renderFc() {
                         : status === 'lost' ? 'Terminé ❌'
                         :                     'En cours';
         var statusBtn = '<button class="status-btn ' + status + '" data-act="status" data-pid="' + pid + '">' + statusLabel + '</button>';
+        var histBtn = '<button class="btn btn-history" data-act="history" data-pid="' + pid + '" title="Historique">📊</button>';
         var scoreDisplay;
         if (status === 'won')       scoreDisplay = '<div class="display score-won">GAGNÉ</div>';
         else if (status === 'lost') scoreDisplay = '<div class="display score-down">PERDU</div>';
@@ -1272,6 +1290,7 @@ function renderFc() {
           '<div class="player ' + status + '">' +
             '<div class="row">' +
               '<div class="player-name">' + safeName + '</div>' +
+              histBtn +
               statusBtn +
             '</div>' +
             '<div class="row">' +
@@ -1296,6 +1315,7 @@ function renderFc() {
                         : status === 'lost' ? '❌ Terminé'
                         :                     'En cours';
         var statusBadge = '<span class="status-btn ' + status + ' readonly">' + statusLabel + '</span>';
+        var histBtn = '<button class="btn btn-history" data-act="history" data-pid="' + pid + '" data-ic="' + ic.id + '" title="Historique">📊</button>';
         var scoreDisplay;
         if (status === 'won')       scoreDisplay = '<div class="display score-won" style="padding:8px">GAGNÉ</div>';
         else if (status === 'lost') scoreDisplay = '<div class="display score-down" style="padding:8px">PERDU</div>';
@@ -1305,6 +1325,7 @@ function renderFc() {
           '<div class="player ' + status + '">' +
             '<div class="row">' +
               '<div class="player-name">' + safeName + '</div>' +
+              histBtn +
               statusBadge +
             '</div>' +
             '<div class="row">' +
@@ -1413,17 +1434,21 @@ function renderFc() {
     };
   }
 
-  // Listeners actions (uniquement sur mon IC)
-  if (isMyIc) {
-    document.getElementById('players-list').addEventListener('click', function(e) {
-      var b = e.target.closest('button');
-      if (!b) return;
-      var act = b.dataset.act, pid = b.dataset.pid;
-      if (act === 'score')  changeScore(ic.id, pid, parseInt(b.dataset.d));
-      if (act === 'hole')   changeHole(ic.id, pid, parseInt(b.dataset.d));
-      if (act === 'status') toggleStatus(ic.id, pid);
-    });
-  }
+  // Listeners actions (sur mon IC : édition / sur autres : juste l'historique)
+  document.getElementById('players-list').addEventListener('click', function(e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    var act = b.dataset.act, pid = b.dataset.pid;
+    if (act === 'history') {
+      var targetIc = b.dataset.ic || ic.id;
+      openPlayerHistoryModal(targetIc, pid);
+      return;
+    }
+    if (!isMyIc) return;
+    if (act === 'score')  changeScore(ic.id, pid, parseInt(b.dataset.d));
+    if (act === 'hole')   changeHole(ic.id, pid, parseInt(b.dataset.d));
+    if (act === 'status') toggleStatus(ic.id, pid);
+  });
 
   // Restaurer scroll/focus
   window.scrollTo(0, savedScroll);
@@ -1482,6 +1507,7 @@ function renderIcDetail(icId, isAdminView, viewerRole) {
                       : status === 'lost' ? 'Terminé ❌'
                       :                     'En cours';
       var statusBtn = '<button class="status-btn ' + status + '" data-act="status" data-pid="' + pid + '">' + statusLabel + '</button>';
+      var histBtn = '<button class="btn btn-history" data-act="history" data-pid="' + pid + '" title="Historique">📊</button>';
 
       var scoreDisplay;
       if (status === 'won')      scoreDisplay = '<div class="display score-won">GAGNÉ</div>';
@@ -1493,6 +1519,7 @@ function renderIcDetail(icId, isAdminView, viewerRole) {
           '<div class="row">' +
             delBtn +
             '<input class="player-name" value="' + safeName + '" data-pid="' + pid + '" ' + nameAttr + '>' +
+            histBtn +
             statusBtn +
           '</div>' +
           '<div class="row">' +
@@ -1611,6 +1638,7 @@ function renderIcDetail(icId, isAdminView, viewerRole) {
     if (act === 'score')                 changeScore(icId, pid, parseInt(b.dataset.d));
     if (act === 'hole')                  changeHole(icId, pid, parseInt(b.dataset.d));
     if (act === 'status')                toggleStatus(icId, pid);
+    if (act === 'history')               openPlayerHistoryModal(icId, pid);
   });
   document.getElementById('players-list').addEventListener('change', function(e) {
     if (e.target.dataset && e.target.dataset.act === 'rename' && isAdminView) {
@@ -1692,6 +1720,7 @@ function renderSpectator() {
                         : status === 'lost' ? '❌ Terminé'
                         :                     'En cours';
         var statusBadge = '<span class="status-btn ' + status + ' readonly">' + statusLabel + '</span>';
+        var histBtn = '<button class="btn btn-history" data-act="history" data-pid="' + pid + '" title="Historique">📊</button>';
         var scoreDisplay;
         if (status === 'won')       scoreDisplay = '<div class="display score-won" style="padding:8px">GAGNÉ</div>';
         else if (status === 'lost') scoreDisplay = '<div class="display score-down" style="padding:8px">PERDU</div>';
@@ -1700,6 +1729,7 @@ function renderSpectator() {
           '<div class="player ' + status + '">' +
             '<div class="row">' +
               '<div class="player-name">' + escapeHtml(p.name || '') + '</div>' +
+              histBtn +
               statusBadge +
             '</div>' +
             '<div class="row">' +
@@ -1766,6 +1796,13 @@ function renderSpectator() {
       };
     });
   }
+
+  // Listener historique joueur
+  document.querySelectorAll('[data-act="history"]').forEach(function(btn) {
+    btn.onclick = function() {
+      openPlayerHistoryModal(ic.id, btn.dataset.pid);
+    };
+  });
 
   window.scrollTo(0, savedScroll);
 }
@@ -1995,17 +2032,158 @@ function openEditDayModal() {
 }
 
 function startNewDay() {
-  if (!confirm('🔄 Démarrer une NOUVELLE journée IC ?\n\nToutes les rencontres actuelles, joueurs et scores seront EFFACÉS.\nLe code admin et le club seront conservés.\n\nContinuer ?')) return;
-  if (!confirm('⚠️ Confirme une seconde fois : tout sera effacé.\n\nAs-tu bien sauvegardé les codes (.txt) si besoin ?')) return;
-  // Effacer toutes les rencontres + reset journée
-  state.clubRef.update({
-    ics: null,
-    dayDate: null,
-    dayTitle: null
+  if (!confirm('🔄 Démarrer une NOUVELLE journée IC ?\n\nLa journée actuelle sera archivée (consultable pendant 2 ans dans 📁 Historique).\nLes rencontres et scores seront effacés.\nLe code admin et le club seront conservés.\n\nContinuer ?')) return;
+  if (!confirm('⚠️ Confirme une seconde fois : tout sera effacé pour démarrer une nouvelle journée.\n\nAs-tu bien sauvegardé les codes (.txt) si besoin ?')) return;
+
+  // Archiver d'abord, puis effacer
+  archiveCurrentDay().then(function() {
+    return state.clubRef.update({
+      ics: null,
+      dayDate: null,
+      dayTitle: null
+    });
   }).then(function() {
-    showToast('🔄 Nouvelle journée démarrée');
+    return cleanOldArchives();
+  }).then(function() {
+    showToast('🔄 Journée archivée et nouvelle démarrée');
     setTimeout(function() { openEditDayModal(); }, 500);
+  }).catch(function(e) {
+    alert('Erreur : ' + e.message);
   });
+}
+
+/* Archiver la journée en cours sous /archives/{archiveId} */
+function archiveCurrentDay() {
+  // Si pas de journée en cours, rien à archiver
+  if (!state.dayDate && !state.dayTitle && Object.keys(state.ics).length === 0) {
+    return Promise.resolve();
+  }
+  var archiveData = {
+    archivedAt: firebase.database.ServerValue.TIMESTAMP,
+    dayDate: state.dayDate || null,
+    dayTitle: state.dayTitle || ('Journée du ' + nowStr()),
+    ics: JSON.parse(JSON.stringify(state.ics)) // copie profonde
+  };
+  return state.clubRef.child('archives').push(archiveData).then(function() {
+    return true;
+  });
+}
+
+/* Suppression des archives de plus de 2 ans */
+function cleanOldArchives() {
+  var twoYearsAgo = Date.now() - (2 * 365 * 24 * 3600 * 1000);
+  return state.clubRef.child('archives').once('value').then(function(snap) {
+    var updates = {};
+    snap.forEach(function(child) {
+      var v = child.val();
+      if (v.archivedAt && v.archivedAt < twoYearsAgo) {
+        updates[child.key] = null;
+      }
+    });
+    if (Object.keys(updates).length > 0) {
+      return state.clubRef.child('archives').update(updates);
+    }
+  });
+}
+
+/* Modal historique : liste des journées archivées */
+function openArchivesModal() {
+  showModal('<h3>📁 Historique</h3><div style="text-align:center;padding:20px;color:#64748b">Chargement…</div>');
+  state.clubRef.child('archives').once('value').then(function(snap) {
+    var entries = [];
+    snap.forEach(function(child) {
+      entries.push(Object.assign({ id: child.key }, child.val()));
+    });
+    // Tri du plus récent au plus ancien
+    entries.sort(function(a, b) { return (b.archivedAt || 0) - (a.archivedAt || 0); });
+
+    if (entries.length === 0) {
+      showModal(
+        '<h3>📁 Historique</h3>' +
+        '<div style="padding:20px;text-align:center;color:#64748b">Aucune journée archivée.<br><br>Quand tu démarres une nouvelle journée IC, l\'ancienne est automatiquement archivée ici.</div>' +
+        '<div class="modal-actions"><button class="ma-cancel" onclick="hideModal()">Fermer</button></div>'
+      );
+      return;
+    }
+
+    var listHtml = entries.map(function(e) {
+      var d = new Date(e.archivedAt || 0);
+      var dateStr = pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear();
+      var nbIcs = e.ics ? Object.keys(e.ics).length : 0;
+      // Calcul du résultat global de cette journée
+      var totWin = 0, totLose = 0, totTie = 0;
+      if (e.ics) {
+        for (var icId in e.ics) {
+          var sc = computeIcScore(e.ics[icId]);
+          if (sc.win)  totWin++;
+          else if (sc.lose) totLose++;
+          else totTie++;
+        }
+      }
+      var summary = nbIcs + ' rencontre' + (nbIcs > 1 ? 's' : '') +
+                    ' · ✅ ' + totWin + ' · ❌ ' + totLose + (totTie ? ' · ⚖️ ' + totTie : '');
+      return '<div style="background:#f8fafc;border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer" data-aid="' + e.id + '">' +
+               '<div style="font-weight:700;color:#1e3c72;font-size:14px">' + escapeHtml(e.dayTitle || dateStr) + '</div>' +
+               '<div style="font-size:11px;color:#64748b;margin-top:2px">' + dateStr + ' · ' + summary + '</div>' +
+             '</div>';
+    }).join('');
+
+    showModal(
+      '<h3>📁 Historique (' + entries.length + ')</h3>' +
+      '<div style="font-size:12px;color:#64748b;margin-bottom:10px">Tape sur une journée pour voir le détail.</div>' +
+      '<div style="max-height:60vh;overflow-y:auto">' + listHtml + '</div>' +
+      '<div class="modal-actions"><button class="ma-cancel" onclick="hideModal()">Fermer</button></div>'
+    );
+
+    document.querySelectorAll('[data-aid]').forEach(function(el) {
+      el.onclick = function() {
+        var aid = el.dataset.aid;
+        var entry = entries.find(function(x) { return x.id === aid; });
+        if (entry) openArchiveDetailModal(entry);
+      };
+    });
+  });
+}
+
+function openArchiveDetailModal(entry) {
+  var icsArr = entry.ics ? Object.keys(entry.ics).map(function(id) {
+    return Object.assign({ id: id }, entry.ics[id]);
+  }) : [];
+
+  var icsHtml = icsArr.map(function(ic) {
+    var sc = computeIcScore(ic);
+    var scClass = sc.win ? 'win' : (sc.lose ? 'lose' : 'tie');
+    var scColor = sc.win ? '#16a34a' : sc.lose ? '#dc2626' : '#ca8a04';
+    var trophy = sc.win ? '🏆 ' : sc.lose ? '😞 ' : '⚖️ ';
+    var nbPlayers = ic.players ? Object.keys(ic.players).length : 0;
+    return '<div style="background:#f8fafc;border-radius:10px;padding:10px 12px;margin-bottom:8px;border-left:4px solid ' + scColor + '">' +
+             '<div style="font-weight:700;color:#1e3c72">' + trophy + escapeHtml(ic.name || '?') + '</div>' +
+             '<div style="font-size:13px;margin-top:4px;color:#64748b">' +
+               'Score : <b style="color:' + scColor + ';font-size:16px">' + fmtScoreVal(sc.us) + ' - ' + fmtScoreVal(sc.them) + '</b>' +
+               ' · ' + nbPlayers + ' joueurs' +
+             '</div>' +
+           '</div>';
+  }).join('');
+
+  var d = new Date(entry.archivedAt || 0);
+  var dateStr = pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear();
+
+  showModal(
+    '<h3>' + escapeHtml(entry.dayTitle || 'Journée') + '</h3>' +
+    '<div style="font-size:12px;color:#64748b;margin-bottom:14px">Archivée le ' + dateStr + '</div>' +
+    (icsHtml || '<div style="text-align:center;color:#64748b;padding:20px">Aucune rencontre dans cette journée.</div>') +
+    '<div class="modal-actions">' +
+      '<button class="ma-cancel" onclick="openArchivesModal()" style="flex:1">‹ Retour</button>' +
+      '<button class="ma-danger" id="m-del" style="flex:1">🗑 Supprimer</button>' +
+    '</div>'
+  );
+  document.getElementById('m-del').onclick = function() {
+    if (!confirm('Supprimer définitivement cette archive ?')) return;
+    state.clubRef.child('archives/' + entry.id).remove().then(function() {
+      showToast('Archive supprimée');
+      openArchivesModal();
+    });
+  };
 }
 
 function openNewIcModal() {
