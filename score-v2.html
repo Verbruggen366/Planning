@@ -974,6 +974,7 @@ function renderAdmin() {
           '<div class="admin-ic-actions">' +
             '<button class="btn-open"  data-act="open"   data-id="' + ic.id + '">⛳ Gérer</button>' +
             '<button class="btn-share" data-act="share"  data-id="' + ic.id + '">📤 Partager</button>' +
+            '<button class="btn-trash" data-act="del"    data-id="' + ic.id + '">🗑</button>' +
           '</div>' +
         '</div>';
     }).join('');
@@ -1035,6 +1036,7 @@ function renderAdmin() {
       var act = b.dataset.act, id = b.dataset.id;
       if (act === 'open')  openIcAsAdmin(id);
       if (act === 'share') openShareIcModal(id);
+      if (act === 'del')   deleteIc(id);
     };
   });
 }
@@ -1574,15 +1576,29 @@ function renderIcDetail(icId, isAdminView, viewerRole) {
       '</div>'
     : '';
 
-  var bottomBtns = isAdminView
-    ? '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">' +
+  var bottomBtns;
+  if (isAdminView && viewerRole === 'admin') {
+    // Admin : peut supprimer la rencontre
+    bottomBtns = '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">' +
         '<button class="btn-secondary" id="btnReset" style="flex:1;min-width:130px">🔄 Reset scores</button>' +
         '<button class="btn-secondary" id="btnResetPlayers" style="flex:1;min-width:130px;background:rgba(220,38,38,0.25);border-color:rgba(220,38,38,0.5)">🗑 Reset joueurs</button>' +
-        '<button class="btn-secondary" id="btnShareIc" style="flex:1;min-width:130px">📤 Partager FC</button>' +
-      '</div>'
-    : '<div style="text-align:center;margin-top:14px">' +
+        '<button class="btn-secondary" id="btnShareIc" style="flex:1;min-width:130px">📤 Partager</button>' +
+      '</div>' +
+      '<div style="margin-top:8px">' +
+        '<button class="btn-secondary" id="btnDeleteIc" style="width:100%;background:rgba(220,38,38,0.45);border-color:rgba(220,38,38,0.7);color:#fff;font-weight:700">🗑 Supprimer cette rencontre</button>' +
+      '</div>';
+  } else if (isAdminView) {
+    // Capitaine : pas de bouton supprimer la rencontre
+    bottomBtns = '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">' +
+        '<button class="btn-secondary" id="btnReset" style="flex:1;min-width:130px">🔄 Reset scores</button>' +
+        '<button class="btn-secondary" id="btnResetPlayers" style="flex:1;min-width:130px;background:rgba(220,38,38,0.25);border-color:rgba(220,38,38,0.5)">🗑 Reset joueurs</button>' +
+        '<button class="btn-secondary" id="btnShareIc" style="flex:1;min-width:130px">📤 Partager</button>' +
+      '</div>';
+  } else {
+    bottomBtns = '<div style="text-align:center;margin-top:14px">' +
         '<button class="small-link" onclick="leaveClub()">Quitter</button>' +
       '</div>';
+  }
 
   appEl.innerHTML =
     topBar +
@@ -1608,6 +1624,8 @@ function renderIcDetail(icId, isAdminView, viewerRole) {
     document.getElementById('btnReset').onclick  = function() { resetIc(icId); };
     document.getElementById('btnResetPlayers').onclick = function() { resetPlayers(icId); };
     document.getElementById('btnShareIc').onclick = function() { openShareIcModal(icId); };
+    var btnDel = document.getElementById('btnDeleteIc');
+    if (btnDel) btnDel.onclick = function() { deleteIc(icId); };
   }
   // Bouton "Changer de rôle" (présent en admin et FC)
   var btnRole = document.getElementById('btnRoleSwitch');
@@ -1982,9 +2000,23 @@ function resetPlayers(icId) {
   state.clubRef.child('ics/' + icId + '/players').remove();
 }
 function deleteIc(icId) {
-  var name = state.ics[icId].name || '?';
-  if (!confirm('Supprimer définitivement « ' + name + ' » ?')) return;
-  state.clubRef.child('ics/' + icId).remove();
+  var ic = state.ics[icId];
+  if (!ic) return;
+  var name = ic.name || '?';
+  var nbPlayers = ic.players ? Object.keys(ic.players).length : 0;
+  var msg = 'Supprimer définitivement la rencontre « ' + name + ' » ?\n\n';
+  if (nbPlayers > 0) {
+    msg += '⚠️ Cette rencontre a ' + nbPlayers + ' joueur' + (nbPlayers > 1 ? 's' : '') + ' et leurs scores.\n';
+  }
+  msg += 'Cette action est irréversible.';
+  if (!confirm(msg)) return;
+  state.clubRef.child('ics/' + icId).remove().then(function() {
+    showToast('🗑 Rencontre « ' + name + ' » supprimée');
+    // Si on était dans la vue détail de cet IC, revenir à la liste
+    if (adminViewingIc === icId) {
+      adminViewingIc = null;
+    }
+  });
 }
 
 /* ============================================================
