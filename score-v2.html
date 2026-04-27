@@ -86,7 +86,20 @@
     background: rgba(255,255,255,0.12); border-radius: 14px;
     padding: 10px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.15);
   }
-  .player.won { background: rgba(74,222,128,0.18); border-color: rgba(74,222,128,0.5); }
+  .player.won  { background: rgba(74,222,128,0.18);  border-color: rgba(74,222,128,0.6);  border-width: 2px; }
+  .player.lost { background: rgba(248,113,113,0.18); border-color: rgba(248,113,113,0.6); border-width: 2px; }
+  .status-btn {
+    padding: 6px 12px; border-radius: 18px; font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.5px; border: none; cursor: pointer;
+    flex-shrink: 0; min-width: 86px; text-align: center;
+  }
+  .status-btn.pending { background: rgba(255,255,255,0.25); color: #fff; }
+  .status-btn.pending:active { background: rgba(255,255,255,0.4); }
+  .status-btn.won     { background: #16a34a; color: #fff; }
+  .status-btn.won:active { background: #15803d; }
+  .status-btn.lost    { background: #dc2626; color: #fff; }
+  .status-btn.lost:active { background: #b91c1c; }
+  .status-btn.readonly { pointer-events: none; }
   .row { display: flex; align-items: center; gap: 8px; }
   .row + .row { margin-top: 8px; }
   .player-name {
@@ -434,8 +447,14 @@ function formatScore(s) {
   return               { text: Math.abs(s) + ' DN', cls: 'score-down' };
 }
 
-/* Score général d'un IC : 1pt par joueur "won", 0,5 par AS si fini, sinon projeté UP/DN
-   Mais comme on suit le live : projection = nb UP + 0,5 par AS du côté nous */
+/* Score général d'un IC :
+   - Joueur "won" (Terminé ✅)  : +1 pour nous
+   - Joueur "lost" (Terminé ❌) : +1 pour eux
+   - Joueur en cours :
+        UP → +1 projeté pour nous
+        AS → 0,5 / 0,5 projeté
+        DN → +1 projeté pour eux
+   Score final = quand TOUS les joueurs ont un statut terminé (won ou lost) */
 function computeIcScore(ic) {
   var n = ic.nbMatches || (ic.players ? Object.keys(ic.players).length : 0);
   var us = 0, them = 0;
@@ -443,23 +462,33 @@ function computeIcScore(ic) {
   var done = 0, totalPlayers = Object.keys(ic.players).length;
   for (var pid in ic.players) {
     var p = ic.players[pid];
-    if (p.won) { us += 1; done++; }
-    else if (p.score === 0 && p.hole >= 18) { us += 0.5; them += 0.5; done++; }
-    else {
-      // Match en cours : projection optimiste / pessimiste
-      // On compte 1 si UP, 0 si DN, 0.5 si AS
-      if ((p.score || 0) > 0)      us   += 1;     // projeté en notre faveur
-      else if ((p.score || 0) < 0) them += 1;     // projeté en leur faveur
-      else                         { us += 0.5; them += 0.5; } // AS projeté
+    var s = p.status || (p.won ? 'won' : 'pending'); // compat ancien format
+
+    if (s === 'won') {
+      us += 1;
+      done++;
+    } else if (s === 'lost') {
+      them += 1;
+      done++;
+    } else {
+      // En cours : projection selon score actuel
+      if ((p.score || 0) > 0)      us   += 1;
+      else if ((p.score || 0) < 0) them += 1;
+      else                         { us += 0.5; them += 0.5; }
     }
   }
   var total = n;
-  var us2 = Math.round(us * 2) / 2;
-  var them2 = total - us2;
+  var us2   = Math.round(us   * 2) / 2;
+  var them2 = Math.round(them * 2) / 2;
+  // Garde la cohérence si total différent de la somme (ex: nbMatches > nb joueurs)
+  // them = total - us pour l'affichage final
+  var themFinal = total - us2;
   return {
-    us: us2, them: them2, total: total,
-    win:  us2 > total / 2,
-    lose: us2 < total / 2,
+    us: us2,
+    them: themFinal,
+    total: total,
+    win:  us2 >  total / 2,
+    lose: us2 <  total / 2,
     tie:  us2 === total / 2,
     allDone: done === totalPlayers && totalPlayers > 0
   };
@@ -1042,13 +1071,22 @@ function renderFc() {
       var safeName = escapeHtml(p.name || '');
 
       if (isMyIc) {
-        // Mon IC : boutons +/- et 🏆 actifs (pas de suppression : admin only)
-        var trophyBtn = '<button class="btn btn-trophy ' + (won ? 'on' : '') + '" data-act="trophy" data-pid="' + pid + '" title="Match gagné">🏆</button>';
+        // Mon IC : boutons +/-, trous, statut actifs
+        var status = p.status || (p.won ? 'won' : 'pending');
+        var statusLabel = status === 'won'  ? 'Terminé ✅'
+                        : status === 'lost' ? 'Terminé ❌'
+                        :                     'En cours';
+        var statusBtn = '<button class="status-btn ' + status + '" data-act="status" data-pid="' + pid + '">' + statusLabel + '</button>';
+        var scoreDisplay;
+        if (status === 'won')       scoreDisplay = '<div class="display score-won">GAGNÉ</div>';
+        else if (status === 'lost') scoreDisplay = '<div class="display score-down">PERDU</div>';
+        else                        scoreDisplay = '<div class="display ' + f.cls + '">' + f.text + '</div>';
+
         return '' +
-          '<div class="player ' + (won ? 'won' : '') + '">' +
+          '<div class="player ' + status + '">' +
             '<div class="row">' +
               '<div class="player-name">' + safeName + '</div>' +
-              trophyBtn +
+              statusBtn +
             '</div>' +
             '<div class="row">' +
               '<div class="group">' +
@@ -1060,18 +1098,28 @@ function renderFc() {
               '<div class="group">' +
                 '<span class="label">Score</span>' +
                 '<button class="btn btn-down" data-act="score" data-pid="' + pid + '" data-d="-1">−</button>' +
-                '<div class="display ' + (won ? 'score-won' : f.cls) + '">' + (won ? 'GAGNÉ' : f.text) + '</div>' +
+                scoreDisplay +
                 '<button class="btn btn-up" data-act="score" data-pid="' + pid + '" data-d="1">+</button>' +
               '</div>' +
             '</div>' +
           '</div>';
       } else {
         // IC d'un autre FC : lecture seule
+        var status = p.status || (p.won ? 'won' : 'pending');
+        var statusLabel = status === 'won'  ? '✅ Terminé'
+                        : status === 'lost' ? '❌ Terminé'
+                        :                     'En cours';
+        var statusBadge = '<span class="status-btn ' + status + ' readonly">' + statusLabel + '</span>';
+        var scoreDisplay;
+        if (status === 'won')       scoreDisplay = '<div class="display score-won" style="padding:8px">GAGNÉ</div>';
+        else if (status === 'lost') scoreDisplay = '<div class="display score-down" style="padding:8px">PERDU</div>';
+        else                        scoreDisplay = '<div class="display ' + f.cls + '" style="padding:8px">' + f.text + '</div>';
+
         return '' +
-          '<div class="player ' + (won ? 'won' : '') + '">' +
+          '<div class="player ' + status + '">' +
             '<div class="row">' +
               '<div class="player-name">' + safeName + '</div>' +
-              (won ? '<span style="font-size:18px">🏆</span>' : '') +
+              statusBadge +
             '</div>' +
             '<div class="row">' +
               '<div class="group">' +
@@ -1080,9 +1128,7 @@ function renderFc() {
               '</div>' +
               '<div class="group">' +
                 '<span class="label">Score</span>' +
-                '<div class="display ' + (won ? 'score-won' : f.cls) + '" style="padding:8px">' +
-                  (won ? 'GAGNÉ' : f.text) +
-                '</div>' +
+                scoreDisplay +
               '</div>' +
             '</div>' +
           '</div>';
@@ -1189,7 +1235,7 @@ function renderFc() {
       var act = b.dataset.act, pid = b.dataset.pid;
       if (act === 'score')  changeScore(ic.id, pid, parseInt(b.dataset.d));
       if (act === 'hole')   changeHole(ic.id, pid, parseInt(b.dataset.d));
-      if (act === 'trophy') toggleWon(ic.id, pid);
+      if (act === 'status') toggleStatus(ic.id, pid);
     });
   }
 
@@ -1234,21 +1280,29 @@ function renderIcDetail(icId, isAdminView) {
     playersHtml = pids.map(function(pid) {
       var p = ic.players[pid];
       var f = formatScore(p.score || 0);
-      var won = !!p.won;
+      var status = p.status || (p.won ? 'won' : 'pending');
       var safeName = escapeHtml(p.name || '');
 
       var delBtn = isAdminView
         ? '<button class="btn btn-del" data-act="del" data-pid="' + pid + '">✕</button>'
         : '';
       var nameAttr = isAdminView ? 'data-act="rename"' : 'readonly';
-      var trophyBtn = '<button class="btn btn-trophy ' + (won ? 'on' : '') + '" data-act="trophy" data-pid="' + pid + '" title="Match gagné">🏆</button>';
+      var statusLabel = status === 'won'  ? 'Terminé ✅'
+                      : status === 'lost' ? 'Terminé ❌'
+                      :                     'En cours';
+      var statusBtn = '<button class="status-btn ' + status + '" data-act="status" data-pid="' + pid + '">' + statusLabel + '</button>';
+
+      var scoreDisplay;
+      if (status === 'won')      scoreDisplay = '<div class="display score-won">GAGNÉ</div>';
+      else if (status === 'lost') scoreDisplay = '<div class="display score-down">PERDU</div>';
+      else                        scoreDisplay = '<div class="display ' + f.cls + '">' + f.text + '</div>';
 
       return '' +
-        '<div class="player ' + (won ? 'won' : '') + '">' +
+        '<div class="player ' + status + '">' +
           '<div class="row">' +
             delBtn +
             '<input class="player-name" value="' + safeName + '" data-pid="' + pid + '" ' + nameAttr + '>' +
-            trophyBtn +
+            statusBtn +
           '</div>' +
           '<div class="row">' +
             '<div class="group">' +
@@ -1260,7 +1314,7 @@ function renderIcDetail(icId, isAdminView) {
             '<div class="group">' +
               '<span class="label">Score</span>' +
               '<button class="btn btn-down" data-act="score" data-pid="' + pid + '" data-d="-1">−</button>' +
-              '<div class="display ' + (won ? 'score-won' : f.cls) + '">' + (won ? 'GAGNÉ' : f.text) + '</div>' +
+              scoreDisplay +
               '<button class="btn btn-up" data-act="score" data-pid="' + pid + '" data-d="1">+</button>' +
             '</div>' +
           '</div>' +
@@ -1355,7 +1409,7 @@ function renderIcDetail(icId, isAdminView) {
     if (act === 'del'    && isAdminView) removePlayer(icId, pid);
     if (act === 'score')                 changeScore(icId, pid, parseInt(b.dataset.d));
     if (act === 'hole')                  changeHole(icId, pid, parseInt(b.dataset.d));
-    if (act === 'trophy')                toggleWon(icId, pid);
+    if (act === 'status')                toggleStatus(icId, pid);
   });
   document.getElementById('players-list').addEventListener('change', function(e) {
     if (e.target.dataset && e.target.dataset.act === 'rename' && isAdminView) {
@@ -1427,12 +1481,20 @@ function renderSpectator() {
     : pids.map(function(pid) {
         var p = ic.players[pid];
         var f = formatScore(p.score || 0);
-        var won = !!p.won;
+        var status = p.status || (p.won ? 'won' : 'pending');
+        var statusLabel = status === 'won'  ? '✅ Terminé'
+                        : status === 'lost' ? '❌ Terminé'
+                        :                     'En cours';
+        var statusBadge = '<span class="status-btn ' + status + ' readonly">' + statusLabel + '</span>';
+        var scoreDisplay;
+        if (status === 'won')       scoreDisplay = '<div class="display score-won" style="padding:8px">GAGNÉ</div>';
+        else if (status === 'lost') scoreDisplay = '<div class="display score-down" style="padding:8px">PERDU</div>';
+        else                        scoreDisplay = '<div class="display ' + f.cls + '" style="padding:8px">' + f.text + '</div>';
         return '' +
-          '<div class="player ' + (won ? 'won' : '') + '">' +
+          '<div class="player ' + status + '">' +
             '<div class="row">' +
               '<div class="player-name">' + escapeHtml(p.name || '') + '</div>' +
-              (won ? '<span style="font-size:18px">🏆</span>' : '') +
+              statusBadge +
             '</div>' +
             '<div class="row">' +
               '<div class="group">' +
@@ -1441,9 +1503,7 @@ function renderSpectator() {
               '</div>' +
               '<div class="group">' +
                 '<span class="label">Score</span>' +
-                '<div class="display ' + (won ? 'score-won' : f.cls) + '" style="padding:8px">' +
-                  (won ? 'GAGNÉ' : f.text) +
-                '</div>' +
+                scoreDisplay +
               '</div>' +
             '</div>' +
           '</div>';
@@ -1541,7 +1601,7 @@ function addPlayer(icId) {
   var maxOrder = 0;
   if (ic.players) for (var k in ic.players) if (ic.players[k].order > maxOrder) maxOrder = ic.players[k].order;
   var newRef = state.clubRef.child('ics/' + icId + '/players').push();
-  newRef.set({ name: name, score: 0, hole: 0, won: false, order: maxOrder + 1 });
+  newRef.set({ name: name, score: 0, hole: 0, won: false, status: 'pending', order: maxOrder + 1 });
   input.value = '';
 }
 function removePlayer(icId, pid) {
@@ -1563,22 +1623,32 @@ function changeHole(icId, pid, d) {
   var p = state.ics[icId].players[pid];
   var h = ((p && p.hole) || 0) + d;
   if (h < 0) h = 0;
-  if (h > 18) h = 18;
+  if (h > 36) h = 36;
   state.clubRef.child('ics/' + icId + '/players/' + pid).update({ hole: h });
 }
-function toggleWon(icId, pid) {
+
+/* Cycle 3 états : pending → won → lost → pending */
+function toggleStatus(icId, pid) {
   var p = state.ics[icId].players[pid];
-  var newWon = !p.won;
-  state.clubRef.child('ics/' + icId + '/players/' + pid).update({ won: newWon });
+  var current = p.status || (p.won ? 'won' : 'pending');
+  var next;
+  if (current === 'pending')   next = 'won';
+  else if (current === 'won')  next = 'lost';
+  else                          next = 'pending';
+  state.clubRef.child('ics/' + icId + '/players/' + pid).update({
+    status: next,
+    won: next === 'won' // compat
+  });
 }
 function resetIc(icId) {
   if (!confirm('Reset scores de cet IC ?\n(les joueurs sont gardés, scores remis à 0)')) return;
   var p = state.ics[icId].players || {};
   var updates = {};
   for (var pid in p) {
-    updates[pid + '/score'] = 0;
-    updates[pid + '/hole']  = 0;
-    updates[pid + '/won']   = false;
+    updates[pid + '/score']  = 0;
+    updates[pid + '/hole']   = 0;
+    updates[pid + '/won']    = false;
+    updates[pid + '/status'] = 'pending';
   }
   state.clubRef.child('ics/' + icId + '/players').update(updates);
 }
