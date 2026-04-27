@@ -459,6 +459,92 @@ function fmtScoreVal(v) {
 }
 
 /* ============================================================
+   EXPORT DES CODES (.txt)
+   ============================================================ */
+function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+function nowStr() {
+  var d = new Date();
+  return pad2(d.getDate()) + '/' + pad2(d.getMonth() + 1) + '/' + d.getFullYear() +
+         ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+function nowFileSafe() {
+  var d = new Date();
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+         '_' + pad2(d.getHours()) + pad2(d.getMinutes());
+}
+
+function buildCodesText() {
+  var base = location.origin + location.pathname;
+  var line = '═══════════════════════════════════════════════';
+  var lines = [];
+  lines.push(line);
+  lines.push('  ⛳ SCORE GOLF — CODES D\'ACCÈS');
+  lines.push('  Club : ' + state.clubName);
+  lines.push('  Date : ' + nowStr());
+  lines.push(line);
+  lines.push('');
+  lines.push('🔴 CODE ADMIN (À GARDER SECRET) :');
+  lines.push('   ' + state.adminCode);
+  lines.push('');
+  lines.push('   Lien admin (clique pour entrer en admin) :');
+  lines.push('   ' + base + '?c=' + state.clubId + '&a=' + state.adminCode);
+  lines.push('');
+  lines.push('🟢 LIEN SPECTATEUR (à partager dans le club) :');
+  lines.push('   ' + base + '?c=' + state.clubId);
+  lines.push('');
+
+  var icsArr = Object.keys(state.ics).map(function(id) {
+    return Object.assign({ id: id }, state.ics[id]);
+  }).sort(function(a, b) { return (a.createdAt || 0) - (b.createdAt || 0); });
+
+  if (icsArr.length > 0) {
+    lines.push(line);
+    lines.push('  INTERCLUBS (' + icsArr.length + ')');
+    lines.push(line);
+    lines.push('');
+    icsArr.forEach(function(ic) {
+      lines.push('▸ ' + ic.name);
+      lines.push('  Nb de matchs : ' + (ic.nbMatches || '?'));
+      lines.push('  Code Fore Caddy : ' + (ic.fcCode || '—'));
+      lines.push('');
+      lines.push('  Lien FC (clique pour entrer en Fore Caddy) :');
+      lines.push('  ' + base + '?c=' + state.clubId + '&fc=' + (ic.fcCode || ''));
+      lines.push('');
+    });
+  } else {
+    lines.push('(Aucun IC créé pour le moment)');
+    lines.push('');
+  }
+
+  lines.push(line);
+  lines.push('⚠️  Garde ce fichier précieusement.');
+  lines.push('    Sans le code admin, impossible de');
+  lines.push('    modifier les rencontres.');
+  lines.push('');
+  lines.push('💡 Astuce : tu peux cliquer directement');
+  lines.push('    sur les liens ci-dessus depuis ce fichier');
+  lines.push('    (double-clic pour ouvrir le .txt).');
+  lines.push(line);
+
+  return lines.join('\n');
+}
+
+function downloadCodes() {
+  var txt = buildCodesText();
+  var blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  var safeClub = (state.clubName || 'Club').replace(/[^a-zA-Z0-9_-]/g, '_');
+  a.href = url;
+  a.download = safeClub + '_codes_' + nowFileSafe() + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+  showToast('💾 Fichier codes téléchargé');
+}
+
+/* ============================================================
    ROUTING / DÉMARRAGE
    ============================================================ */
 function start() {
@@ -626,6 +712,12 @@ function createClub(name) {
   }).then(function() {
     showToast('Club créé ! Code admin : ' + adminCode);
     enterClub(clubId, adminCode, null);
+    // Petit délai pour laisser l'app charger, puis proposer la sauvegarde
+    setTimeout(function() {
+      if (confirm('Club créé ! 🎉\n\nCode admin : ' + adminCode + '\n\nTu veux télécharger un fichier avec tous tes codes ?\n(Très fortement recommandé : sans ce code, tu ne pourras plus modifier le club)')) {
+        downloadCodes();
+      }
+    }, 800);
   }).catch(function(e) { alert('Erreur : ' + e.message); });
 }
 
@@ -683,6 +775,9 @@ function renderAdmin() {
         '<button class="btn-secondary" id="btnChangeAdm" style="flex:1">🔄 Changer code admin</button>' +
       '</div>' +
       '<div style="display:flex;gap:8px;margin-top:8px">' +
+        '<button class="btn-secondary" id="btnDownload" style="flex:1;background:rgba(74,222,128,0.25);border-color:rgba(74,222,128,0.5)">💾 Sauvegarder tous les codes (.txt)</button>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;margin-top:8px">' +
         '<button class="btn-secondary" id="btnRenameClub" style="flex:1">✏️ Renommer club</button>' +
         '<button class="btn-secondary" id="btnLeave" style="flex:1">🚪 Quitter</button>' +
       '</div>' +
@@ -691,6 +786,7 @@ function renderAdmin() {
   document.getElementById('btnNewIc').onclick = openNewIcModal;
   document.getElementById('btnShareClub').onclick = openShareClubModal;
   document.getElementById('btnChangeAdm').onclick = changeAdminCode;
+  document.getElementById('btnDownload').onclick = downloadCodes;
   document.getElementById('btnRenameClub').onclick = renameClub;
   document.getElementById('btnLeave').onclick = function() {
     if (confirm('Quitter ? (tu pourras revenir avec ton lien admin)')) leaveClub();
@@ -734,6 +830,17 @@ function renderIcDetail(icId, isAdminView) {
   var ic = state.ics[icId];
   if (!ic) return;
   var sc = computeIcScore(ic);
+
+  // Mémoriser la position de scroll et le focus avant le re-render
+  var savedScroll = window.scrollY;
+  var savedFocusPid = null, savedCaret = 0;
+  var activeEl = document.activeElement;
+  if (activeEl && activeEl.classList && activeEl.classList.contains('player-name') && activeEl.dataset.pid) {
+    savedFocusPid = activeEl.dataset.pid;
+    try { savedCaret = activeEl.selectionStart; } catch(e) {}
+  }
+  var newPlayerInputHadFocus = activeEl && activeEl.id === 'newPlayerName';
+  var newPlayerValue = newPlayerInputHadFocus ? activeEl.value : '';
 
   var playersHtml = '';
   var pids = Object.keys(ic.players || {}).sort(function(a, b) {
@@ -844,6 +951,22 @@ function renderIcDetail(icId, isAdminView) {
     document.getElementById('btnShareIc').onclick = function() { openShareIcModal(icId); };
   }
 
+  // Restaurer scroll et focus
+  window.scrollTo(0, savedScroll);
+  if (savedFocusPid) {
+    var elFocus = document.querySelector('.player-name[data-pid="' + savedFocusPid + '"]');
+    if (elFocus) {
+      elFocus.focus({ preventScroll: true });
+      try { elFocus.setSelectionRange(savedCaret, savedCaret); } catch(e) {}
+    }
+  } else if (newPlayerInputHadFocus && isAdminView) {
+    var newInput = document.getElementById('newPlayerName');
+    if (newInput) {
+      newInput.value = newPlayerValue;
+      newInput.focus({ preventScroll: true });
+    }
+  }
+
   // Délégation clics
   document.getElementById('players-list').addEventListener('click', function(e) {
     var b = e.target.closest('button');
@@ -865,6 +988,8 @@ function renderIcDetail(icId, isAdminView) {
    VUE SPECTATEUR : carrousel d'IC + flèches + dots
    ============================================================ */
 function renderSpectator() {
+  var savedScroll = window.scrollY;
+
   var icsArr = Object.keys(state.ics).map(function(id) {
     return Object.assign({ id: id }, state.ics[id]);
   }).sort(function(a, b) {
@@ -974,6 +1099,9 @@ function renderSpectator() {
       };
     });
   }
+
+  // Restaurer scroll
+  window.scrollTo(0, savedScroll);
 }
 
 /* ============================================================
@@ -1075,6 +1203,12 @@ function openNewIcModal() {
     }).then(function() {
       hideModal();
       showToast('IC créé : ' + n);
+      // Proposer de télécharger les codes mis à jour
+      setTimeout(function() {
+        if (confirm('IC créé ! ⛳\n\nTu veux télécharger le fichier mis à jour avec tous les codes (admin + spectateur + tous les IC) ?')) {
+          downloadCodes();
+        }
+      }, 600);
     }).catch(function(e) { alert('Erreur : ' + e.message); });
   };
 }
