@@ -945,7 +945,8 @@ function renderAdmin() {
 
   appEl.innerHTML =
     '<div class="header">' +
-      '<h1>' + escapeHtml(state.clubName) + '</h1>' +
+      '<h1 style="flex:1">' + escapeHtml(state.clubName) + '</h1>' +
+      '<button class="btn-secondary" id="btnRoleSwitchTop" style="padding:6px 10px;font-size:11px;margin-right:6px">🔄 Rôle</button>' +
       '<span class="role-badge role-admin">ADMIN</span>' +
     '</div>' +
     dayBanner +
@@ -981,6 +982,8 @@ function renderAdmin() {
   document.getElementById('btnDownload').onclick = downloadCodes;
   document.getElementById('btnRenameClub').onclick = renameClub;
   document.getElementById('btnBackSpec').onclick = backToSpectator;
+  var btnRoleTop = document.getElementById('btnRoleSwitchTop');
+  if (btnRoleTop) btnRoleTop.onclick = openRoleSwitchModal;
 
   document.querySelectorAll('.admin-ic-actions button').forEach(function(b) {
     b.onclick = function() {
@@ -1332,12 +1335,14 @@ function renderIcDetail(icId, isAdminView) {
   if (isAdminView) {
     topBar = '<div class="header">' +
                '<button class="btn-secondary" id="btnBack" style="padding:8px 14px">‹ Retour</button>' +
-               '<h1 style="font-size:1.1rem">' + escapeHtml(ic.name) + '</h1>' +
+               '<h1 style="font-size:1.1rem;flex:1">' + escapeHtml(ic.name) + '</h1>' +
+               '<button class="btn-secondary" id="btnRoleSwitch" style="padding:6px 10px;font-size:11px">🔄 Rôle</button>' +
                '<span class="role-badge role-admin">ADMIN</span>' +
              '</div>';
   } else {
     topBar = '<div class="header">' +
-               '<h1 style="font-size:1.1rem">' + escapeHtml(state.clubName) + ' · ' + escapeHtml(ic.name) + '</h1>' +
+               '<h1 style="font-size:1.1rem;flex:1">' + escapeHtml(state.clubName) + ' · ' + escapeHtml(ic.name) + '</h1>' +
+               '<button class="btn-secondary" id="btnRoleSwitch" style="padding:6px 10px;font-size:11px">🔄 Rôle</button>' +
                '<span class="role-badge role-fc">FORE CADDY</span>' +
              '</div>';
   }
@@ -1384,6 +1389,9 @@ function renderIcDetail(icId, isAdminView) {
     document.getElementById('btnResetPlayers').onclick = function() { resetPlayers(icId); };
     document.getElementById('btnShareIc').onclick = function() { openShareIcModal(icId); };
   }
+  // Bouton "Changer de rôle" (présent en admin et FC)
+  var btnRole = document.getElementById('btnRoleSwitch');
+  if (btnRole) btnRole.onclick = openRoleSwitchModal;
 
   // Restaurer scroll et focus
   window.scrollTo(0, savedScroll);
@@ -1442,15 +1450,20 @@ function renderSpectator() {
     '</div>';
   }
 
-  // Bouton "J'ai un code"
-  var codeBtn = '<div style="text-align:center;margin-bottom:10px">' +
-    '<button class="small-link" onclick="openCodePrompt()">🔑 J\'ai un code (Fore Caddy ou Admin)</button>' +
+  // Bouton "J'ai un code" — bien visible
+  var codeBtn = '<div style="margin:14px 0">' +
+    '<button class="btn-secondary" onclick="openCodePrompt()" style="width:100%;background:rgba(255,213,79,0.25);border-color:rgba(255,213,79,0.5);padding:14px;font-size:14px">' +
+      '🔑 J\'ai un code (Fore Caddy ou Admin)' +
+    '</button>' +
     '</div>';
 
   if (icsArr.length === 0) {
     appEl.innerHTML =
-      '<div class="header"><h1>⛳ ' + escapeHtml(state.clubName) + '</h1>' +
-      '<span class="role-badge role-spec">SPECTATEUR</span></div>' +
+      '<div class="header">' +
+        '<h1 style="flex:1">⛳ ' + escapeHtml(state.clubName) + '</h1>' +
+        '<button class="btn-secondary" onclick="openRoleSwitchModal()" style="padding:6px 10px;font-size:11px;margin-right:6px">🔄 Rôle</button>' +
+        '<span class="role-badge role-spec">SPECTATEUR</span>' +
+      '</div>' +
       dayBanner +
       '<div class="card"><div class="empty">' +
         (state.dayTitle || state.dayDate ? 'Aucune rencontre pour cette journée' : 'Aucune journée IC en cours') +
@@ -1528,7 +1541,8 @@ function renderSpectator() {
 
   appEl.innerHTML =
     '<div class="header">' +
-      '<h1>⛳ ' + escapeHtml(state.clubName) + '</h1>' +
+      '<h1 style="flex:1">⛳ ' + escapeHtml(state.clubName) + '</h1>' +
+      '<button class="btn-secondary" onclick="openRoleSwitchModal()" style="padding:6px 10px;font-size:11px;margin-right:6px">🔄 Rôle</button>' +
       '<span class="role-badge role-spec">SPECTATEUR</span>' +
     '</div>' +
     dayBanner +
@@ -1561,6 +1575,50 @@ function renderSpectator() {
   }
 
   window.scrollTo(0, savedScroll);
+}
+
+function openRoleSwitchModal() {
+  var currentRoleLabel = state.role === 'admin' ? '🔴 Admin'
+                       : state.role === 'fc'    ? '⛳ Fore Caddy'
+                       :                           '👁 Spectateur';
+  showModal(
+    '<h3>🔄 Changer de rôle</h3>' +
+    '<div style="font-size:13px;color:#64748b;margin-bottom:14px">' +
+      'Rôle actuel : <b>' + currentRoleLabel + '</b>' +
+    '</div>' +
+
+    '<div style="border-top:1px solid #e2e8f0;padding-top:14px">' +
+      '<button class="btn-primary" id="m-spec" style="background:#475569;color:#fff;width:100%;margin-bottom:10px">' +
+        '👁 Passer en spectateur' +
+      '</button>' +
+
+      '<div class="lbl">🔑 Ou entrer un code (FC ou Admin)</div>' +
+      '<input class="field code-field" id="m-code" placeholder="ABCD ou ABCD42" maxlength="6" autocomplete="off" autocorrect="off" autocapitalize="characters">' +
+      '<div style="font-size:11px;color:#64748b;margin-top:6px">' +
+        '4 lettres = Fore Caddy · 4 lettres + 2 chiffres = Admin' +
+      '</div>' +
+      '<button class="btn-primary" id="m-validate" style="margin-top:10px">Valider le code</button>' +
+    '</div>' +
+
+    '<div class="modal-actions">' +
+      '<button class="ma-cancel" onclick="hideModal()">Fermer</button>' +
+    '</div>'
+  );
+  document.getElementById('m-spec').onclick = function() {
+    hideModal();
+    backToSpectator();
+  };
+  var input = document.getElementById('m-code');
+  setTimeout(function() { input.focus(); }, 100);
+  input.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') document.getElementById('m-validate').click();
+  });
+  document.getElementById('m-validate').onclick = function() {
+    var c = input.value.trim();
+    if (!c) { showToast('Entre un code'); return; }
+    hideModal();
+    applyCode(c);
+  };
 }
 
 function openCodePrompt() {
@@ -1617,14 +1675,41 @@ function renamePlayer(icId, pid, name) {
 function changeScore(icId, pid, d) {
   var p = state.ics[icId].players[pid];
   var cur = (p && p.score) || 0;
-  state.clubRef.child('ics/' + icId + '/players/' + pid).update({ score: cur + d });
+  var newScore = cur + d;
+  var updates = { score: newScore };
+  // Auto-bascule de statut si match mathématiquement plié (uniquement avant le 19e trou)
+  var newStatus = autoStatus(p, newScore, p.hole || 0);
+  if (newStatus !== null) updates.status = newStatus;
+  if (newStatus === 'won')  updates.won = true;
+  if (newStatus === 'lost') updates.won = false;
+  state.clubRef.child('ics/' + icId + '/players/' + pid).update(updates);
 }
 function changeHole(icId, pid, d) {
   var p = state.ics[icId].players[pid];
   var h = ((p && p.hole) || 0) + d;
   if (h < 0) h = 0;
   if (h > 36) h = 36;
-  state.clubRef.child('ics/' + icId + '/players/' + pid).update({ hole: h });
+  var updates = { hole: h };
+  var newStatus = autoStatus(p, p.score || 0, h);
+  if (newStatus !== null) updates.status = newStatus;
+  if (newStatus === 'won')  updates.won = true;
+  if (newStatus === 'lost') updates.won = false;
+  state.clubRef.child('ics/' + icId + '/players/' + pid).update(updates);
+}
+
+/* Retourne 'won', 'lost' ou null selon si le match est mathématiquement plié.
+   Désactivé après le 18e trou (play-off : on attend le clic du FC). */
+function autoStatus(p, score, hole) {
+  if (!p) return null;
+  var current = p.status || 'pending';
+  // Ne pas écraser un statut déjà manuel (won/lost définitif via clic)
+  if (current !== 'pending') return null;
+  // Pas d'auto-bascule en play-off (19e trou et plus)
+  if (hole >= 19) return null;
+  var remaining = 18 - hole;
+  if (score >  remaining) return 'won';
+  if (-score >  remaining) return 'lost';
+  return null;
 }
 
 /* Cycle 3 états : pending → won → lost → pending */
