@@ -671,6 +671,16 @@ function leaveClub() {
    RENDER ROUTER
    ============================================================ */
 function render() {
+  // Si admin et qu'on était en train de voir un IC en détail, on y reste
+  if (state.role === 'admin' && adminViewingIc) {
+    if (state.ics[adminViewingIc]) {
+      renderIcDetail(adminViewingIc, true);
+      return;
+    } else {
+      // L'IC a été supprimé : retour à la liste
+      adminViewingIc = null;
+    }
+  }
   if (state.role === 'admin') renderAdmin();
   else if (state.role === 'fc') renderFc();
   else renderSpectator();
@@ -919,9 +929,10 @@ function renderIcDetail(icId, isAdminView) {
     : '';
 
   var bottomBtns = isAdminView
-    ? '<div style="display:flex;gap:8px;margin-top:14px">' +
-        '<button class="btn-secondary" id="btnReset" style="flex:1">🔄 Reset scores</button>' +
-        '<button class="btn-secondary" id="btnShareIc" style="flex:1">📤 Partager FC</button>' +
+    ? '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">' +
+        '<button class="btn-secondary" id="btnReset" style="flex:1;min-width:130px">🔄 Reset scores</button>' +
+        '<button class="btn-secondary" id="btnResetPlayers" style="flex:1;min-width:130px;background:rgba(220,38,38,0.25);border-color:rgba(220,38,38,0.5)">🗑 Reset joueurs</button>' +
+        '<button class="btn-secondary" id="btnShareIc" style="flex:1;min-width:130px">📤 Partager FC</button>' +
       '</div>'
     : '<div style="text-align:center;margin-top:14px">' +
         '<button class="small-link" onclick="leaveClub()">Quitter</button>' +
@@ -948,6 +959,7 @@ function renderIcDetail(icId, isAdminView) {
       if (e.key === 'Enter') addPlayer(icId);
     });
     document.getElementById('btnReset').onclick  = function() { resetIc(icId); };
+    document.getElementById('btnResetPlayers').onclick = function() { resetPlayers(icId); };
     document.getElementById('btnShareIc').onclick = function() { openShareIcModal(icId); };
   }
 
@@ -1155,6 +1167,10 @@ function resetIc(icId) {
     updates[pid + '/won']   = false;
   }
   state.clubRef.child('ics/' + icId + '/players').update(updates);
+}
+function resetPlayers(icId) {
+  if (!confirm('Supprimer TOUS les joueurs de cet IC ?\n\nLa rencontre est gardée, mais tu devras ré-ajouter les joueurs.')) return;
+  state.clubRef.child('ics/' + icId + '/players').remove();
 }
 function deleteIc(icId) {
   var name = state.ics[icId].name || '?';
