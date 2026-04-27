@@ -375,31 +375,41 @@ var db = firebase.database();
      /golfClubs/{clubId}
        ├─ name           : "RWGC"
        ├─ adminCode      : "ABCD42"   (4 lettres + 2 chiffres)
+       ├─ dayDate        : "2026-04-27"  (date de la journée IC en cours)
+       ├─ dayTitle       : "Journée du 27 avril"  (libre)
        ├─ ics/{icId}
-       │    ├─ name      : "Men 1 vs Bercuit"
-       │    ├─ fcCode    : "MEN1"     (4 lettres)
-       │    ├─ nbMatches : 5..7       (= nb joueurs/matchs prévus)
+       │    ├─ name      : "Men 4 vs Hasselt"
+       │    ├─ fcCode    : "MEN4"     (4 lettres)
+       │    ├─ nbMatches : 5..7
        │    └─ players/{pid}
-       │         ├─ name   : "Francis"
-       │         ├─ score  : -2..+5  (UP = +, DN = -)
-       │         ├─ hole   : 0..18
-       │         ├─ won    : true/false (toggle par le FC quand match terminé)
-       │         └─ order  : 1..N
+       │         ├─ name  : "Francis"
+       │         ├─ score : -2..+5
+       │         ├─ hole  : 0..18
+       │         ├─ won   : true/false
+       │         └─ order : 1..N
 
    URLs :
-     ?c=clubId                        → spectateur
-     ?c=clubId&fc=MEN1                → fore caddy d'un IC
-     ?c=clubId&a=ABCD42               → super-admin
+     ?c=clubId           → spectateur (par défaut)
+     ?c=clubId&fc=MEN4   → fore caddy d'un IC
+     ?c=clubId&a=ABCD42  → super-admin
+
+   Workflow :
+     - Admin crée le club une seule fois
+     - Pour chaque journée IC : admin crée plusieurs rencontres, donne les codes FC
+     - À la fin : admin clique "Nouvelle journée" → tout est effacé sauf club & code admin
 ============================================================ */
 
 var state = {
   clubId: null,
   clubName: null,
-  adminCode: null,    // si admin
-  fcCode: null,       // si fore caddy
-  role: 'none',       // 'admin' | 'fc' | 'spec' | 'none'
-  ics: {},            // tous les IC du club
-  currentIcId: null,  // IC affiché (en mode spec/fc)
+  dayDate: null,       // "2026-04-27"
+  dayTitle: null,      // ex "Journée du 27 avril"
+  adminCode: null,
+  fcCode: null,
+  role: 'none',        // 'admin' | 'fc' | 'spec' | 'none'
+  ics: {},
+  currentIcId: null,
+  fcViewingIc: null,   // pour le FC qui navigue entre les IC
   clubRef: null
 };
 
@@ -480,17 +490,21 @@ function buildCodesText() {
   lines.push(line);
   lines.push('  ⛳ SCORE GOLF — CODES D\'ACCÈS');
   lines.push('  Club : ' + state.clubName);
-  lines.push('  Date : ' + nowStr());
+  if (state.dayTitle) lines.push('  Journée : ' + state.dayTitle);
+  if (state.dayDate)  lines.push('  Date : ' + state.dayDate);
+  lines.push('  Exporté le : ' + nowStr());
   lines.push(line);
   lines.push('');
   lines.push('🔴 CODE ADMIN (À GARDER SECRET) :');
   lines.push('   ' + state.adminCode);
   lines.push('');
-  lines.push('   Lien admin (clique pour entrer en admin) :');
-  lines.push('   ' + base + '?c=' + state.clubId + '&a=' + state.adminCode);
-  lines.push('');
-  lines.push('🟢 LIEN SPECTATEUR (à partager dans le club) :');
+  lines.push('🟢 LIEN À PARTAGER (un seul lien pour TOUT LE MONDE) :');
   lines.push('   ' + base + '?c=' + state.clubId);
+  lines.push('');
+  lines.push('   👁 Tout le monde arrive en SPECTATEUR par défaut.');
+  lines.push('   🔑 Bouton « J\'ai un code » dans l\'app pour passer en :');
+  lines.push('      - Fore Caddy (4 lettres) : modifie SA rencontre');
+  lines.push('      - Admin (4 lettres + 2 chiffres) : tout gérer');
   lines.push('');
 
   var icsArr = Object.keys(state.ics).map(function(id) {
@@ -499,7 +513,7 @@ function buildCodesText() {
 
   if (icsArr.length > 0) {
     lines.push(line);
-    lines.push('  INTERCLUBS (' + icsArr.length + ')');
+    lines.push('  RENCONTRES (' + icsArr.length + ')');
     lines.push(line);
     lines.push('');
     icsArr.forEach(function(ic) {
@@ -507,23 +521,20 @@ function buildCodesText() {
       lines.push('  Nb de matchs : ' + (ic.nbMatches || '?'));
       lines.push('  Code Fore Caddy : ' + (ic.fcCode || '—'));
       lines.push('');
-      lines.push('  Lien FC (clique pour entrer en Fore Caddy) :');
-      lines.push('  ' + base + '?c=' + state.clubId + '&fc=' + (ic.fcCode || ''));
-      lines.push('');
     });
   } else {
-    lines.push('(Aucun IC créé pour le moment)');
+    lines.push('(Aucune rencontre créée pour le moment)');
     lines.push('');
   }
 
   lines.push(line);
-  lines.push('⚠️  Garde ce fichier précieusement.');
-  lines.push('    Sans le code admin, impossible de');
-  lines.push('    modifier les rencontres.');
+  lines.push('💡 EN PRATIQUE :');
+  lines.push('  1. Envoie le lien ci-dessus à TOUT LE MONDE par WhatsApp');
+  lines.push('  2. Donne en privé son code à chaque Fore Caddy');
+  lines.push('  3. Garde le code admin secret');
+  lines.push('  4. Les FC tapent leur code dans l\'app pour activer leurs droits');
   lines.push('');
-  lines.push('💡 Astuce : tu peux cliquer directement');
-  lines.push('    sur les liens ci-dessus depuis ce fichier');
-  lines.push('    (double-clic pour ouvrir le .txt).');
+  lines.push('⚠️  Garde ce fichier précieusement.');
   lines.push(line);
 
   return lines.join('\n');
@@ -576,7 +587,19 @@ function enterClub(clubId, adm, fc) {
   state.clubId = clubId;
   state.clubRef = db.ref('golfClubs/' + clubId);
 
-  // Récupérer le club + vérifier les codes
+  // Si pas de code FC dans l'URL, voir si on en avait un mémorisé localement
+  if (!fc && !adm) {
+    try { fc = localStorage.getItem('lastFc_' + clubId); } catch(e) {}
+  }
+  // Si pas de code admin dans l'URL, voir si on en avait un mémorisé localement
+  if (!adm) {
+    try {
+      var lastClubId = localStorage.getItem('lastClub');
+      var lastAdm = localStorage.getItem('lastAdm');
+      if (lastClubId === clubId && lastAdm) adm = lastAdm;
+    } catch(e) {}
+  }
+
   state.clubRef.once('value').then(function(snap) {
     if (!snap.exists()) {
       alert('Club introuvable. Vérifie le lien.');
@@ -585,6 +608,8 @@ function enterClub(clubId, adm, fc) {
     }
     var club = snap.val();
     state.clubName = club.name || 'Golf Club';
+    state.dayDate = club.dayDate || null;
+    state.dayTitle = club.dayTitle || null;
 
     // Déterminer le rôle
     if (adm && club.adminCode && adm.toUpperCase() === club.adminCode.toUpperCase()) {
@@ -595,7 +620,6 @@ function enterClub(clubId, adm, fc) {
         localStorage.setItem('lastAdm', club.adminCode);
       } catch(e) {}
     } else if (fc) {
-      // Trouver l'IC qui correspond à ce code Fore Caddy
       var foundIc = null;
       var icsObj = club.ics || {};
       for (var icId in icsObj) {
@@ -608,21 +632,22 @@ function enterClub(clubId, adm, fc) {
         state.role = 'fc';
         state.fcCode = fc.toUpperCase();
         state.currentIcId = foundIc;
-        try { localStorage.setItem('lastClub', clubId); } catch(e) {}
+        try {
+          localStorage.setItem('lastClub', clubId);
+          localStorage.setItem('lastFc_' + clubId, state.fcCode);
+        } catch(e) {}
       } else {
-        alert('Code Fore Caddy invalide. Connecté en spectateur.');
+        // Code FC invalide ou expiré → spectateur
         state.role = 'spec';
+        try { localStorage.removeItem('lastFc_' + clubId); } catch(e) {}
       }
     } else {
       state.role = 'spec';
       try { localStorage.setItem('lastClub', clubId); } catch(e) {}
     }
 
-    // Mettre à jour l'URL pour garder le rôle au refresh
-    var newUrl = '?c=' + clubId;
-    if (state.role === 'admin') newUrl += '&a=' + state.adminCode;
-    if (state.role === 'fc')    newUrl += '&fc=' + state.fcCode;
-    history.replaceState(null, '', newUrl);
+    // URL "propre" : on ne garde que le code club (le FC/admin reste en localStorage)
+    history.replaceState(null, '', '?c=' + clubId);
 
     subscribeIcs();
   }).catch(function(e) {
@@ -640,14 +665,17 @@ function subscribeIcs() {
     }
     var club = snap.val();
     state.clubName = club.name || 'Golf Club';
+    state.dayDate = club.dayDate || null;
+    state.dayTitle = club.dayTitle || null;
     state.ics = club.ics || {};
-    // Si admin et code changé, on garde le nouveau
     if (state.role === 'admin') state.adminCode = club.adminCode;
-    // Si FC : vérifier que son IC existe encore
     if (state.role === 'fc' && state.currentIcId && !state.ics[state.currentIcId]) {
-      alert('Ta rencontre a été supprimée.');
-      leaveClub();
-      return;
+      // Le FC n'avait plus son IC : repasse en spectateur
+      state.role = 'spec';
+      state.currentIcId = null;
+      state.fcCode = null;
+      try { localStorage.removeItem('lastFc_' + state.clubId); } catch(e) {}
+      showToast('Ta rencontre a été effacée — passage en spectateur');
     }
     render();
   });
@@ -656,8 +684,9 @@ function subscribeIcs() {
 function leaveClub() {
   if (state.clubRef) state.clubRef.off();
   state = {
-    clubId: null, clubName: null, adminCode: null, fcCode: null,
-    role: 'none', ics: {}, currentIcId: null, clubRef: null
+    clubId: null, clubName: null, dayDate: null, dayTitle: null,
+    adminCode: null, fcCode: null, role: 'none',
+    ics: {}, currentIcId: null, fcViewingIc: null, clubRef: null
   };
   try {
     localStorage.removeItem('lastClub');
@@ -665,6 +694,76 @@ function leaveClub() {
   } catch(e) {}
   history.replaceState(null, '', location.pathname);
   renderWelcome();
+}
+
+/* Applique un code (entré par l'utilisateur) au club courant.
+   Si OK : on bascule en FC ou admin. Sinon on reste en spectateur. */
+function applyCode(rawCode) {
+  if (!state.clubId) return;
+  var code = (rawCode || '').trim().toUpperCase();
+  if (!code) { showToast('Entre un code'); return; }
+
+  state.clubRef.once('value').then(function(snap) {
+    if (!snap.exists()) { showToast('Club introuvable'); return; }
+    var club = snap.val();
+
+    // Code admin ?
+    if (club.adminCode && code === club.adminCode.toUpperCase()) {
+      state.role = 'admin';
+      state.adminCode = club.adminCode;
+      state.fcCode = null;
+      state.currentIcId = null;
+      try {
+        localStorage.setItem('lastClub', state.clubId);
+        localStorage.setItem('lastAdm', club.adminCode);
+        localStorage.removeItem('lastFc_' + state.clubId);
+      } catch(e) {}
+      showToast('🔴 Mode admin activé');
+      render();
+      return;
+    }
+
+    // Code FC ?
+    var foundIc = null;
+    var icsObj = club.ics || {};
+    for (var icId in icsObj) {
+      if (icsObj[icId].fcCode && icsObj[icId].fcCode.toUpperCase() === code) {
+        foundIc = icId;
+        break;
+      }
+    }
+    if (foundIc) {
+      state.role = 'fc';
+      state.fcCode = code;
+      state.currentIcId = foundIc;
+      state.adminCode = null;
+      try {
+        localStorage.setItem('lastClub', state.clubId);
+        localStorage.setItem('lastFc_' + state.clubId, code);
+        localStorage.removeItem('lastAdm');
+      } catch(e) {}
+      showToast('⛳ Mode Fore Caddy : ' + (icsObj[foundIc].name || ''));
+      render();
+      return;
+    }
+
+    // Code invalide
+    showToast('❌ Code incorrect — tu restes en spectateur');
+  });
+}
+
+function backToSpectator() {
+  state.role = 'spec';
+  state.adminCode = null;
+  state.fcCode = null;
+  state.currentIcId = null;
+  state.fcViewingIc = null;
+  try {
+    localStorage.removeItem('lastAdm');
+    localStorage.removeItem('lastFc_' + state.clubId);
+  } catch(e) {}
+  showToast('👁 Mode spectateur');
+  render();
 }
 
 /* ============================================================
@@ -693,17 +792,37 @@ function renderWelcome() {
   appEl.innerHTML =
     '<div class="header"><h1>⛳ Score Golf</h1></div>' +
     '<div class="card">' +
+      '<h2>Bienvenue 👋</h2>' +
+      '<div class="hint" style="opacity:1;font-size:14px;line-height:1.6">' +
+        'Pour rejoindre une journée IC en cours, ouvre le <b>lien WhatsApp/SMS</b> envoyé par ton admin.<br><br>' +
+        'Le lien contient automatiquement les infos pour rejoindre le club.' +
+      '</div>' +
+    '</div>' +
+    '<div class="card" style="opacity:0.6">' +
+      '<h2 style="font-size:14px">⚙️ Création d\'un nouveau club</h2>' +
+      '<div class="hint" style="font-size:12px">' +
+        'Réservé à l\'organisateur principal. Si tu n\'es pas admin du club, ignore cette section.' +
+      '</div>' +
+      '<div style="text-align:center;margin-top:10px">' +
+        '<button class="small-link" onclick="showCreateClubForm()">Je suis admin et je veux créer un club</button>' +
+      '</div>' +
+    '</div>';
+}
+
+function showCreateClubForm() {
+  if (!confirm('⚠️ Es-tu vraiment l\'organisateur du club ?\n\nSi tu es Fore Caddy ou Spectateur, ne crée PAS de nouveau club. Demande le bon lien à l\'admin.\n\nContinuer ?')) return;
+  appEl.innerHTML =
+    '<div class="header"><h1>⛳ Score Golf</h1></div>' +
+    '<div class="card">' +
       '<h2>🆕 Créer un nouveau club</h2>' +
       '<div class="lbl">Nom du club (ex : RWGC)</div>' +
       '<input class="field" id="newClubName" placeholder="RWGC" maxlength="40">' +
       '<button class="btn-primary" style="margin-top:14px" id="btnCreate">Créer le club</button>' +
-      '<div class="hint">Tu seras admin du club et tu pourras créer autant d\'interclubs (IC) que tu veux.</div>' +
-    '</div>' +
-    '<div class="card">' +
-      '<h2>🔓 Rejoindre un club existant</h2>' +
-      '<div class="hint">Tu as un lien WhatsApp ? Ouvre-le directement, il contient déjà le code.</div>' +
+      '<div class="hint">Tu seras admin du club et tu pourras créer des journées IC avec leurs rencontres.</div>' +
+      '<div style="text-align:center;margin-top:10px">' +
+        '<button class="small-link" onclick="renderWelcome()">‹ Retour</button>' +
+      '</div>' +
     '</div>';
-
   document.getElementById('btnCreate').onclick = function() {
     var name = document.getElementById('newClubName').value.trim();
     if (!name) { alert('Donne un nom au club'); return; }
@@ -741,9 +860,31 @@ function renderAdmin() {
     return (a.createdAt || 0) - (b.createdAt || 0);
   });
 
+  // Bandeau Journée IC
+  var dayBanner;
+  if (state.dayDate || state.dayTitle) {
+    dayBanner = '<div class="card" style="background:rgba(74,222,128,0.18);border-color:rgba(74,222,128,0.5);padding:12px 14px">' +
+      '<div style="display:flex;align-items:center;gap:10px">' +
+        '<div style="font-size:24px">📅</div>' +
+        '<div style="flex:1">' +
+          '<div style="font-size:11px;opacity:0.85;font-weight:700;text-transform:uppercase;letter-spacing:0.5px">Journée IC en cours</div>' +
+          '<div style="font-weight:800;font-size:15px">' + escapeHtml(state.dayTitle || state.dayDate) + '</div>' +
+          (state.dayDate && state.dayTitle && state.dayDate !== state.dayTitle ? '<div style="font-size:12px;opacity:0.8">' + state.dayDate + '</div>' : '') +
+        '</div>' +
+        '<button class="btn-secondary" id="btnEditDay" style="padding:6px 10px;font-size:12px">✏️</button>' +
+      '</div>' +
+    '</div>';
+  } else {
+    dayBanner = '<div class="card" style="background:rgba(245,158,11,0.18);border-color:rgba(245,158,11,0.5)">' +
+      '<div style="font-size:14px;font-weight:700">📅 Aucune journée IC en cours</div>' +
+      '<div class="hint" style="margin-top:6px;opacity:1">Crée une journée IC avant d\'ajouter des rencontres.</div>' +
+      '<button class="btn-secondary" id="btnNewDay" style="margin-top:10px;width:100%;background:rgba(74,222,128,0.3);border-color:rgba(74,222,128,0.5)">📅 Démarrer une journée IC</button>' +
+    '</div>';
+  }
+
   var icsHtml;
   if (icsArr.length === 0) {
-    icsHtml = '<div class="empty">Aucun IC créé. Tape sur « + Nouvel IC » pour commencer.</div>';
+    icsHtml = '<div class="empty">Aucune rencontre. Tape sur « + Nouvelle rencontre » pour en ajouter.</div>';
   } else {
     icsHtml = icsArr.map(function(ic) {
       var sc = computeIcScore(ic);
@@ -763,25 +904,30 @@ function renderAdmin() {
           '<div class="admin-ic-actions">' +
             '<button class="btn-open"  data-act="open"   data-id="' + ic.id + '">⛳ Gérer</button>' +
             '<button class="btn-share" data-act="share"  data-id="' + ic.id + '">📤 Partager</button>' +
-            '<button class="btn-edit"  data-act="edit"   data-id="' + ic.id + '">✏️ Modifier</button>' +
-            '<button class="btn-trash" data-act="del"    data-id="' + ic.id + '">🗑</button>' +
           '</div>' +
         '</div>';
     }).join('');
   }
+
+  var hasDay = !!(state.dayDate || state.dayTitle);
+  var newIcBtn = hasDay
+    ? '<button class="btn-primary" id="btnNewIc">+ Nouvelle rencontre</button>'
+    : '';
 
   appEl.innerHTML =
     '<div class="header">' +
       '<h1>' + escapeHtml(state.clubName) + '</h1>' +
       '<span class="role-badge role-admin">ADMIN</span>' +
     '</div>' +
-    '<button class="btn-primary" id="btnNewIc">+ Nouvel IC</button>' +
+    dayBanner +
+    newIcBtn +
     '<div>' + icsHtml + '</div>' +
+    (hasDay ? '<button class="btn-secondary" id="btnNewDayBis" style="width:100%;margin-top:14px;background:rgba(220,38,38,0.25);border-color:rgba(220,38,38,0.5)">🔄 Nouvelle journée IC (efface tout)</button>' : '') +
     '<div class="card" style="margin-top:20px">' +
       '<div class="lbl">Code admin (à garder secret)</div>' +
       '<div style="font-family:monospace;font-size:18px;font-weight:800;letter-spacing:3px;text-align:center;background:rgba(0,0,0,0.3);padding:10px;border-radius:10px;color:#fbbf24">' + state.adminCode + '</div>' +
       '<div style="display:flex;gap:8px;margin-top:10px">' +
-        '<button class="btn-secondary" id="btnShareClub" style="flex:1">📤 Lien spectateur (tous IC)</button>' +
+        '<button class="btn-secondary" id="btnShareClub" style="flex:1">📤 Lien spectateur</button>' +
         '<button class="btn-secondary" id="btnChangeAdm" style="flex:1">🔄 Changer code admin</button>' +
       '</div>' +
       '<div style="display:flex;gap:8px;margin-top:8px">' +
@@ -789,27 +935,29 @@ function renderAdmin() {
       '</div>' +
       '<div style="display:flex;gap:8px;margin-top:8px">' +
         '<button class="btn-secondary" id="btnRenameClub" style="flex:1">✏️ Renommer club</button>' +
-        '<button class="btn-secondary" id="btnLeave" style="flex:1">🚪 Quitter</button>' +
+        '<button class="btn-secondary" id="btnBackSpec" style="flex:1">👁 Mode spectateur</button>' +
       '</div>' +
     '</div>';
 
-  document.getElementById('btnNewIc').onclick = openNewIcModal;
+  if (hasDay) {
+    document.getElementById('btnNewIc').onclick = openNewIcModal;
+    document.getElementById('btnEditDay').onclick = openEditDayModal;
+    var btnDayBis = document.getElementById('btnNewDayBis');
+    if (btnDayBis) btnDayBis.onclick = startNewDay;
+  } else {
+    document.getElementById('btnNewDay').onclick = openEditDayModal;
+  }
   document.getElementById('btnShareClub').onclick = openShareClubModal;
   document.getElementById('btnChangeAdm').onclick = changeAdminCode;
   document.getElementById('btnDownload').onclick = downloadCodes;
   document.getElementById('btnRenameClub').onclick = renameClub;
-  document.getElementById('btnLeave').onclick = function() {
-    if (confirm('Quitter ? (tu pourras revenir avec ton lien admin)')) leaveClub();
-  };
+  document.getElementById('btnBackSpec').onclick = backToSpectator;
 
-  // Events sur les actions des IC
   document.querySelectorAll('.admin-ic-actions button').forEach(function(b) {
     b.onclick = function() {
       var act = b.dataset.act, id = b.dataset.id;
       if (act === 'open')  openIcAsAdmin(id);
       if (act === 'share') openShareIcModal(id);
-      if (act === 'edit')  openEditIcModal(id);
-      if (act === 'del')   deleteIc(id);
     };
   });
 }
@@ -826,14 +974,234 @@ function backToAdminList() {
 }
 
 /* ============================================================
-   VUE FORE CADDY (et admin dans un IC)
+   VUE FORE CADDY : voit TOUS les IC, modifie SEULEMENT le sien
+   Navigation par flèches/dots comme le spectateur
    ============================================================ */
 function renderFc() {
   if (!state.currentIcId || !state.ics[state.currentIcId]) {
     appEl.innerHTML = '<div class="card"><div class="empty">Rencontre introuvable</div></div>';
     return;
   }
-  renderIcDetail(state.currentIcId, false);
+
+  // Mémoriser scroll/focus
+  var savedScroll = window.scrollY;
+  var savedFocusPid = null, savedCaret = 0;
+  var activeEl = document.activeElement;
+  if (activeEl && activeEl.classList && activeEl.classList.contains('player-name') && activeEl.dataset.pid) {
+    savedFocusPid = activeEl.dataset.pid;
+    try { savedCaret = activeEl.selectionStart; } catch(e) {}
+  }
+
+  // Le FC peut naviguer entre tous les IC (en lecture seule pour les autres)
+  var icsArr = Object.keys(state.ics).map(function(id) {
+    return Object.assign({ id: id }, state.ics[id]);
+  }).sort(function(a, b) {
+    return (a.createdAt || 0) - (b.createdAt || 0);
+  });
+
+  // Trouver la position de l'IC affiché actuellement
+  var viewingIcId = state.fcViewingIc || state.currentIcId;
+  var idx = 0;
+  for (var i = 0; i < icsArr.length; i++) {
+    if (icsArr[i].id === viewingIcId) { idx = i; break; }
+  }
+  if (!icsArr[idx]) {
+    viewingIcId = state.currentIcId;
+    idx = 0;
+    for (var j = 0; j < icsArr.length; j++) {
+      if (icsArr[j].id === viewingIcId) { idx = j; break; }
+    }
+  }
+  var ic = icsArr[idx] || state.ics[state.currentIcId];
+  if (!ic) return;
+
+  // Suis-je sur MON IC ? (= ai-je le droit de modifier ?)
+  var isMyIc = (ic.id === state.currentIcId) ||
+               (state.fcViewingIc && state.fcViewingIc === state.currentIcId) ||
+               (!state.fcViewingIc);
+  // Plus simple : c'est mon IC si l'ID affiché == celui pour lequel j'ai le code
+  isMyIc = (ic.id === state.currentIcId);
+
+  var sc = computeIcScore(ic);
+
+  // ----- Liste joueurs -----
+  var pids = Object.keys(ic.players || {}).sort(function(a, b) {
+    return ((ic.players[a] && ic.players[a].order) || 0) - ((ic.players[b] && ic.players[b].order) || 0);
+  });
+
+  var playersHtml;
+  if (pids.length === 0) {
+    playersHtml = '<div class="empty">' +
+                    (isMyIc ? 'L\'admin doit ajouter des joueurs' : 'Pas de joueurs') +
+                  '</div>';
+  } else {
+    playersHtml = pids.map(function(pid) {
+      var p = ic.players[pid];
+      var f = formatScore(p.score || 0);
+      var won = !!p.won;
+      var safeName = escapeHtml(p.name || '');
+
+      if (isMyIc) {
+        // Mon IC : boutons +/- et 🏆 actifs (pas de suppression : admin only)
+        var trophyBtn = '<button class="btn btn-trophy ' + (won ? 'on' : '') + '" data-act="trophy" data-pid="' + pid + '" title="Match gagné">🏆</button>';
+        return '' +
+          '<div class="player ' + (won ? 'won' : '') + '">' +
+            '<div class="row">' +
+              '<div class="player-name">' + safeName + '</div>' +
+              trophyBtn +
+            '</div>' +
+            '<div class="row">' +
+              '<div class="group">' +
+                '<span class="label">Trou</span>' +
+                '<button class="btn btn-hole" data-act="hole" data-pid="' + pid + '" data-d="-1">−</button>' +
+                '<div class="display hole-display">' + (p.hole || 0) + '</div>' +
+                '<button class="btn btn-hole" data-act="hole" data-pid="' + pid + '" data-d="1">+</button>' +
+              '</div>' +
+              '<div class="group">' +
+                '<span class="label">Score</span>' +
+                '<button class="btn btn-down" data-act="score" data-pid="' + pid + '" data-d="-1">−</button>' +
+                '<div class="display ' + (won ? 'score-won' : f.cls) + '">' + (won ? 'GAGNÉ' : f.text) + '</div>' +
+                '<button class="btn btn-up" data-act="score" data-pid="' + pid + '" data-d="1">+</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+      } else {
+        // IC d'un autre FC : lecture seule
+        return '' +
+          '<div class="player ' + (won ? 'won' : '') + '">' +
+            '<div class="row">' +
+              '<div class="player-name">' + safeName + '</div>' +
+              (won ? '<span style="font-size:18px">🏆</span>' : '') +
+            '</div>' +
+            '<div class="row">' +
+              '<div class="group">' +
+                '<span class="label">Trou</span>' +
+                '<div class="display hole-display" style="padding:8px">' + (p.hole || 0) + '</div>' +
+              '</div>' +
+              '<div class="group">' +
+                '<span class="label">Score</span>' +
+                '<div class="display ' + (won ? 'score-won' : f.cls) + '" style="padding:8px">' +
+                  (won ? 'GAGNÉ' : f.text) +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+          '</div>';
+      }
+    }).join('');
+  }
+
+  // ----- Navigation entre IC (si > 1) -----
+  var navHtml = '';
+  if (icsArr.length > 1) {
+    var dots = icsArr.map(function(x, i) {
+      return '<div class="dot ' + (i === idx ? 'active' : '') + '" data-i="' + i + '"></div>';
+    }).join('');
+    navHtml =
+      '<div class="nav-bar">' +
+        '<button class="nav-arrow" id="btnPrev" ' + (idx === 0 ? 'disabled' : '') + '>‹</button>' +
+        '<div class="nav-title">' + escapeHtml(ic.name) + ' (' + (idx + 1) + '/' + icsArr.length + ')</div>' +
+        '<button class="nav-arrow" id="btnNext" ' + (idx === icsArr.length - 1 ? 'disabled' : '') + '>›</button>' +
+      '</div>' +
+      '<div class="dots">' + dots + '</div>';
+  } else {
+    navHtml = '<div style="text-align:center;font-weight:700;font-size:14px;margin-bottom:14px;opacity:0.85">' +
+              escapeHtml(ic.name) + '</div>';
+  }
+
+  // ----- Score banner -----
+  var scClass = sc.win ? 'win' : (sc.lose ? 'lose' : 'tie');
+  var scoreLabel = sc.allDone ? 'Score final' : 'Score projeté';
+  var trophy = (sc.win && sc.allDone) ? '<div class="trophy">🏆</div>' : '';
+
+  // ----- Badge mode -----
+  var modeBadge = isMyIc
+    ? '<span class="role-badge role-fc">FORE CADDY · MA RENCONTRE</span>'
+    : '<span class="role-badge role-spec">CONSULTATION</span>';
+
+  // ----- Bouton "Aller à ma rencontre" si on est ailleurs -----
+  var goToMine = '';
+  if (!isMyIc && state.currentIcId) {
+    goToMine = '<div style="text-align:center;margin-bottom:10px">' +
+               '<button class="small-link" id="btnGotoMine">⛳ Aller à ma rencontre</button>' +
+               '</div>';
+  }
+
+  // Bandeau journée
+  var dayBanner = '';
+  if (state.dayTitle || state.dayDate) {
+    dayBanner = '<div style="background:rgba(74,222,128,0.18);border:1px solid rgba(74,222,128,0.4);border-radius:12px;padding:8px 12px;margin-bottom:12px;display:flex;align-items:center;gap:8px;font-size:13px">' +
+      '<span style="font-size:16px">📅</span>' +
+      '<b>' + escapeHtml(state.dayTitle || 'Journée IC') + '</b>' +
+    '</div>';
+  }
+
+  appEl.innerHTML =
+    '<div class="header">' +
+      '<h1 style="font-size:1.1rem">' + escapeHtml(state.clubName) + '</h1>' +
+      modeBadge +
+    '</div>' +
+    dayBanner +
+    navHtml +
+    goToMine +
+    '<div class="score-banner ' + scClass + '">' +
+      trophy +
+      '<div>' +
+        '<div class="label">' + scoreLabel + '</div>' +
+        '<div class="value">' + fmtScoreVal(sc.us) + '–' + fmtScoreVal(sc.them) + '</div>' +
+      '</div>' +
+      '<div class="meta">sur ' + sc.total + ' matchs<br>(nous - eux)</div>' +
+    '</div>' +
+    '<div id="players-list">' + playersHtml + '</div>' +
+    '<div style="text-align:center;margin-top:14px">' +
+      '<button class="small-link" onclick="openCodePrompt()">🔑 Changer de code</button> · ' +
+      '<button class="small-link" onclick="backToSpectator()">👁 Mode spectateur</button> · ' +
+      '<button class="small-link" onclick="leaveClub()">Quitter</button>' +
+    '</div>';
+
+  // Listeners navigation
+  if (icsArr.length > 1) {
+    document.getElementById('btnPrev').onclick = function() {
+      if (idx > 0) { state.fcViewingIc = icsArr[idx - 1].id; render(); }
+    };
+    document.getElementById('btnNext').onclick = function() {
+      if (idx < icsArr.length - 1) { state.fcViewingIc = icsArr[idx + 1].id; render(); }
+    };
+    document.querySelectorAll('.dot').forEach(function(d) {
+      d.onclick = function() {
+        state.fcViewingIc = icsArr[parseInt(d.dataset.i)].id;
+        render();
+      };
+    });
+  }
+  if (!isMyIc) {
+    var btnGoto = document.getElementById('btnGotoMine');
+    if (btnGoto) btnGoto.onclick = function() {
+      state.fcViewingIc = state.currentIcId;
+      render();
+    };
+  }
+
+  // Listeners actions (uniquement sur mon IC)
+  if (isMyIc) {
+    document.getElementById('players-list').addEventListener('click', function(e) {
+      var b = e.target.closest('button');
+      if (!b) return;
+      var act = b.dataset.act, pid = b.dataset.pid;
+      if (act === 'score')  changeScore(ic.id, pid, parseInt(b.dataset.d));
+      if (act === 'hole')   changeHole(ic.id, pid, parseInt(b.dataset.d));
+      if (act === 'trophy') toggleWon(ic.id, pid);
+    });
+  }
+
+  // Restaurer scroll/focus
+  window.scrollTo(0, savedScroll);
+  if (savedFocusPid) {
+    var elFocus = document.querySelector('.player-name[data-pid="' + savedFocusPid + '"]');
+    if (elFocus && elFocus.tagName === 'INPUT') {
+      elFocus.focus({ preventScroll: true });
+      try { elFocus.setSelectionRange(savedCaret, savedCaret); } catch(e) {}
+    }
+  }
 }
 
 function renderIcDetail(icId, isAdminView) {
@@ -1008,15 +1376,36 @@ function renderSpectator() {
     return (a.createdAt || 0) - (b.createdAt || 0);
   });
 
+  // Bandeau journée
+  var dayBanner = '';
+  if (state.dayTitle || state.dayDate) {
+    dayBanner = '<div style="background:rgba(74,222,128,0.18);border:1px solid rgba(74,222,128,0.4);border-radius:12px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px">' +
+      '<div style="font-size:20px">📅</div>' +
+      '<div style="flex:1">' +
+        '<div style="font-weight:800;font-size:14px">' + escapeHtml(state.dayTitle || 'Journée IC') + '</div>' +
+        (state.dayDate ? '<div style="font-size:11px;opacity:0.85">' + state.dayDate + '</div>' : '') +
+      '</div>' +
+    '</div>';
+  }
+
+  // Bouton "J'ai un code"
+  var codeBtn = '<div style="text-align:center;margin-bottom:10px">' +
+    '<button class="small-link" onclick="openCodePrompt()">🔑 J\'ai un code (Fore Caddy ou Admin)</button>' +
+    '</div>';
+
   if (icsArr.length === 0) {
     appEl.innerHTML =
       '<div class="header"><h1>⛳ ' + escapeHtml(state.clubName) + '</h1>' +
       '<span class="role-badge role-spec">SPECTATEUR</span></div>' +
-      '<div class="card"><div class="empty">Aucune rencontre en cours</div></div>';
+      dayBanner +
+      '<div class="card"><div class="empty">' +
+        (state.dayTitle || state.dayDate ? 'Aucune rencontre pour cette journée' : 'Aucune journée IC en cours') +
+      '</div></div>' +
+      codeBtn +
+      '<div style="text-align:center;margin-top:14px"><button class="small-link" onclick="leaveClub()">Quitter</button></div>';
     return;
   }
 
-  // Index courant
   if (!state.currentIcId || !state.ics[state.currentIcId]) {
     state.currentIcId = icsArr[0].id;
   }
@@ -1060,7 +1449,6 @@ function renderSpectator() {
           '</div>';
       }).join('');
 
-  // Dots / flèches : seulement si > 1 IC
   var navHtml = '';
   if (icsArr.length > 1) {
     var dots = icsArr.map(function(x, i) {
@@ -1083,6 +1471,7 @@ function renderSpectator() {
       '<h1>⛳ ' + escapeHtml(state.clubName) + '</h1>' +
       '<span class="role-badge role-spec">SPECTATEUR</span>' +
     '</div>' +
+    dayBanner +
     navHtml +
     '<div class="score-banner ' + scClass + '">' +
       trophy +
@@ -1093,9 +1482,8 @@ function renderSpectator() {
       '<div class="meta">sur ' + sc.total + ' matchs<br>(nous - eux)</div>' +
     '</div>' +
     '<div>' + playersHtml + '</div>' +
-    '<div style="text-align:center;margin-top:14px">' +
-      '<button class="small-link" onclick="leaveClub()">Quitter</button>' +
-    '</div>';
+    codeBtn +
+    '<div style="text-align:center;margin-top:6px"><button class="small-link" onclick="leaveClub()">Quitter</button></div>';
 
   if (icsArr.length > 1) {
     document.getElementById('btnPrev').onclick = function() {
@@ -1112,8 +1500,34 @@ function renderSpectator() {
     });
   }
 
-  // Restaurer scroll
   window.scrollTo(0, savedScroll);
+}
+
+function openCodePrompt() {
+  showModal(
+    '<h3>🔑 Entre ton code</h3>' +
+    '<div style="font-size:13px;color:#64748b;margin-bottom:10px">' +
+      '4 lettres = Fore Caddy<br>' +
+      '4 lettres + 2 chiffres = Admin<br>' +
+      'Mauvais code = tu restes en spectateur' +
+    '</div>' +
+    '<input class="field code-field" id="m-code" placeholder="ABCD" maxlength="6" autocomplete="off" autocorrect="off" autocapitalize="characters">' +
+    '<div class="modal-actions">' +
+      '<button class="ma-cancel" onclick="hideModal()">Annuler</button>' +
+      '<button class="ma-primary" id="m-ok">Valider</button>' +
+    '</div>'
+  );
+  var input = document.getElementById('m-code');
+  setTimeout(function() { input.focus(); }, 100);
+  input.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') document.getElementById('m-ok').click();
+  });
+  document.getElementById('m-ok').onclick = function() {
+    var c = input.value.trim();
+    if (!c) return;
+    hideModal();
+    applyCode(c);
+  };
 }
 
 /* ============================================================
@@ -1192,36 +1606,95 @@ document.getElementById('modal-bg').addEventListener('click', function(e) {
   if (e.target === document.getElementById('modal-bg')) hideModal();
 });
 
-function openNewIcModal() {
+function openEditDayModal() {
+  var today = new Date();
+  var defaultDate = today.getFullYear() + '-' +
+                    pad2(today.getMonth() + 1) + '-' + pad2(today.getDate());
+  var defaultTitle = 'Journée du ' + pad2(today.getDate()) + '/' + pad2(today.getMonth() + 1);
   showModal(
-    '<h3>+ Nouvel interclub</h3>' +
+    '<h3>📅 Journée IC</h3>' +
+    '<div class="lbl">Titre de la journée (libre)</div>' +
+    '<input class="field" id="m-dtitle" placeholder="Ex : Journée du 27 avril" value="' + escapeHtml(state.dayTitle || defaultTitle) + '" maxlength="50">' +
+    '<div class="lbl">Date</div>' +
+    '<input class="field" id="m-ddate" type="date" value="' + (state.dayDate || defaultDate) + '">' +
+    '<div class="modal-actions">' +
+      '<button class="ma-cancel" onclick="hideModal()">Annuler</button>' +
+      '<button class="ma-success" id="m-ok">Enregistrer</button>' +
+    '</div>'
+  );
+  document.getElementById('m-ok').onclick = function() {
+    var title = document.getElementById('m-dtitle').value.trim();
+    var date = document.getElementById('m-ddate').value;
+    if (!title) { alert('Donne un titre à la journée'); return; }
+    state.clubRef.update({
+      dayTitle: title,
+      dayDate: date || null
+    }).then(function() {
+      hideModal();
+      showToast('📅 Journée enregistrée');
+    });
+  };
+}
+
+function startNewDay() {
+  if (!confirm('🔄 Démarrer une NOUVELLE journée IC ?\n\nToutes les rencontres actuelles, joueurs et scores seront EFFACÉS.\nLe code admin et le club seront conservés.\n\nContinuer ?')) return;
+  if (!confirm('⚠️ Confirme une seconde fois : tout sera effacé.\n\nAs-tu bien sauvegardé les codes (.txt) si besoin ?')) return;
+  // Effacer toutes les rencontres + reset journée
+  state.clubRef.update({
+    ics: null,
+    dayDate: null,
+    dayTitle: null
+  }).then(function() {
+    showToast('🔄 Nouvelle journée démarrée');
+    setTimeout(function() { openEditDayModal(); }, 500);
+  });
+}
+
+function openNewIcModal() {
+  var defaultFc = genCode4();
+  showModal(
+    '<h3>+ Nouvelle rencontre</h3>' +
     '<div class="lbl">Nom de la rencontre</div>' +
-    '<input class="field" id="m-icname" placeholder="Ex : Men 1 vs Bercuit" maxlength="40">' +
+    '<input class="field" id="m-icname" placeholder="Ex : Men 4 vs Hasselt" maxlength="40">' +
     '<div class="lbl">Nombre de matchs (5 à 7)</div>' +
     '<input class="field" id="m-nbm" type="number" min="5" max="7" value="5">' +
+    '<div class="lbl">Code Fore Caddy (4 lettres, modifiable)</div>' +
+    '<input class="field code-field" id="m-fc" value="' + defaultFc + '" maxlength="4">' +
+    '<div style="text-align:center;margin-top:6px"><button class="small-link" style="color:#2563eb" id="m-regen">🎲 Générer un nouveau code</button></div>' +
     '<div class="modal-actions">' +
       '<button class="ma-cancel" onclick="hideModal()">Annuler</button>' +
       '<button class="ma-success" id="m-ok">Créer</button>' +
     '</div>'
   );
+  document.getElementById('m-regen').onclick = function() {
+    document.getElementById('m-fc').value = genCode4();
+  };
   document.getElementById('m-ok').onclick = function() {
     var n = document.getElementById('m-icname').value.trim();
     var nbm = parseInt(document.getElementById('m-nbm').value);
+    var fc = document.getElementById('m-fc').value.trim().toUpperCase();
     if (!n) { alert('Donne un nom à la rencontre'); return; }
     if (nbm < 5 || nbm > 7) { alert('Nombre de matchs entre 5 et 7'); return; }
+    if (fc.length !== 4) { alert('Le code FC doit faire 4 caractères'); return; }
+    // Vérifier qu'aucune autre rencontre n'a déjà ce code
+    for (var existingId in state.ics) {
+      if (state.ics[existingId].fcCode && state.ics[existingId].fcCode.toUpperCase() === fc) {
+        alert('Ce code FC est déjà utilisé par "' + state.ics[existingId].name + '". Choisis-en un autre.');
+        return;
+      }
+    }
     var icId = genIcId();
     state.clubRef.child('ics/' + icId).set({
       name: n,
       nbMatches: nbm,
-      fcCode: genCode4(),
+      fcCode: fc,
       createdAt: firebase.database.ServerValue.TIMESTAMP,
       players: {}
     }).then(function() {
       hideModal();
-      showToast('IC créé : ' + n);
-      // Proposer de télécharger les codes mis à jour
+      showToast('Rencontre créée : ' + n);
       setTimeout(function() {
-        if (confirm('IC créé ! ⛳\n\nTu veux télécharger le fichier mis à jour avec tous les codes (admin + spectateur + tous les IC) ?')) {
+        if (confirm('Rencontre créée ! ⛳\n\nCode Fore Caddy : ' + fc + '\n\nTu veux télécharger le fichier mis à jour avec tous les codes ?')) {
           downloadCodes();
         }
       }, 600);
@@ -1280,21 +1753,31 @@ function openShareClubModal() {
 function openShareIcModal(icId) {
   var ic = state.ics[icId];
   var specUrl  = location.origin + location.pathname + '?c=' + state.clubId;
-  var fcUrl    = location.origin + location.pathname + '?c=' + state.clubId + '&fc=' + ic.fcCode;
   showModal(
-    '<h3>📤 Partager « ' + escapeHtml(ic.name) + ' »</h3>' +
+    '<h3>📤 Partage « ' + escapeHtml(ic.name) + ' »</h3>' +
 
-    '<div class="lbl">🟢 Lien spectateur (tous IC du club)</div>' +
-    '<div class="code-box">' + specUrl + '</div>' +
-    '<div style="text-align:center;margin-bottom:10px">' +
-      '<button class="small-link" style="color:#16a34a" onclick="copyText(\'' + specUrl + '\', \'Lien spectateur copié !\')">📋 Copier ce lien</button>' +
+    '<div style="font-size:13px;color:#64748b;margin-bottom:10px">' +
+      'Tout le monde utilise <b>le même lien</b>. Le Fore Caddy entre son code dans l\'app pour activer ses droits.' +
     '</div>' +
 
-    '<div class="lbl">⛳ Lien Fore Caddy (modifie cet IC)</div>' +
-    '<div class="code-box adm">' + fcUrl + '</div>' +
-    '<div style="font-size:12px;color:#64748b;margin:4px 0 8px">Code FC : <b>' + ic.fcCode + '</b></div>' +
+    '<div class="lbl">🟢 Lien à partager (pour TOUT LE MONDE)</div>' +
+    '<div class="code-box">' + specUrl + '</div>' +
     '<div style="text-align:center;margin-bottom:10px">' +
-      '<button class="small-link" style="color:#dc2626" onclick="copyText(\'' + fcUrl + '\', \'Lien Fore Caddy copié !\')">📋 Copier ce lien</button>' +
+      '<button class="small-link" style="color:#16a34a" onclick="copyText(\'' + specUrl + '\', \'Lien copié !\')">📋 Copier le lien</button>' +
+    '</div>' +
+
+    '<div class="lbl">⛳ Code Fore Caddy (à donner à la personne qui tient le score)</div>' +
+    '<div class="code-box adm" style="font-size:24px;letter-spacing:6px">' + ic.fcCode + '</div>' +
+    '<div style="text-align:center;margin-bottom:10px">' +
+      '<button class="small-link" style="color:#dc2626" onclick="copyText(\'' + ic.fcCode + '\', \'Code FC copié !\')">📋 Copier ce code</button>' +
+    '</div>' +
+
+    '<div style="background:#f8fafc;border-radius:8px;padding:10px 12px;font-size:12px;color:#64748b;line-height:1.5">' +
+      '<b>📖 Mode d\'emploi :</b><br>' +
+      '1. Envoie le lien à tout le monde<br>' +
+      '2. Le FC ouvre le lien → arrive en spectateur<br>' +
+      '3. Il tape sur "🔑 J\'ai un code" et entre <b>' + ic.fcCode + '</b><br>' +
+      '4. Il devient Fore Caddy de cette rencontre' +
     '</div>' +
 
     '<div class="modal-actions">' +
