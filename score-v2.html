@@ -1553,7 +1553,7 @@ function renderIcDetail(icId, isAdminView, viewerRole) {
   if (viewerRole === 'admin') {
     roleBadgeHtml = '<span class="role-badge role-admin">ADMIN</span>';
     topBar = '<div class="header">' +
-               '<button class="btn-secondary" id="btnBack" style="padding:8px 14px">‹ Retour</button>' +
+               '<button class="btn-secondary" id="btnBack" style="padding:8px 14px">‹ Liste</button>' +
                '<h1 style="font-size:1.1rem;flex:1">' + escapeHtml(ic.name) + '</h1>' +
                '<button class="btn-secondary" id="btnRoleSwitch" style="padding:6px 10px;font-size:11px">🔄 Rôle</button>' +
                roleBadgeHtml +
@@ -1566,6 +1566,28 @@ function renderIcDetail(icId, isAdminView, viewerRole) {
                '<button class="btn-secondary" id="btnRoleSwitch" style="padding:6px 10px;font-size:11px">🔄 Rôle</button>' +
                roleBadgeHtml +
              '</div>';
+  }
+
+  // Navigation entre rencontres (admin uniquement, et seulement s'il y a >1 IC)
+  var icNavHtml = '';
+  if (viewerRole === 'admin') {
+    var icsArr = Object.keys(state.ics).map(function(id) {
+      return Object.assign({ id: id }, state.ics[id]);
+    }).sort(function(a, b) { return (a.createdAt || 0) - (b.createdAt || 0); });
+    if (icsArr.length > 1) {
+      var idx = 0;
+      for (var i = 0; i < icsArr.length; i++) if (icsArr[i].id === icId) { idx = i; break; }
+      var dots = icsArr.map(function(x, i) {
+        return '<div class="dot ' + (i === idx ? 'active' : '') + '" data-i="' + i + '" data-icid="' + x.id + '"></div>';
+      }).join('');
+      icNavHtml =
+        '<div class="nav-bar">' +
+          '<button class="nav-arrow" id="btnIcPrev" ' + (idx === 0 ? 'disabled' : '') + '>‹</button>' +
+          '<div class="nav-title">' + escapeHtml(ic.name) + ' (' + (idx + 1) + '/' + icsArr.length + ')</div>' +
+          '<button class="nav-arrow" id="btnIcNext" ' + (idx === icsArr.length - 1 ? 'disabled' : '') + '>›</button>' +
+        '</div>' +
+        '<div class="dots">' + dots + '</div>';
+    }
   }
 
   // Champ ajout joueur (admin uniquement)
@@ -1602,6 +1624,7 @@ function renderIcDetail(icId, isAdminView, viewerRole) {
 
   appEl.innerHTML =
     topBar +
+    icNavHtml +
     '<div class="score-banner ' + scClass + '">' +
       trophy +
       '<div>' +
@@ -1613,6 +1636,28 @@ function renderIcDetail(icId, isAdminView, viewerRole) {
     addRow +
     '<div id="players-list">' + playersHtml + '</div>' +
     bottomBtns;
+
+  // Listeners navigation entre rencontres (admin)
+  if (viewerRole === 'admin') {
+    var btnIcPrev = document.getElementById('btnIcPrev');
+    var btnIcNext = document.getElementById('btnIcNext');
+    if (btnIcPrev || btnIcNext) {
+      var allIcs = Object.keys(state.ics).map(function(id) {
+        return Object.assign({ id: id }, state.ics[id]);
+      }).sort(function(a, b) { return (a.createdAt || 0) - (b.createdAt || 0); });
+      var curIdx = 0;
+      for (var k = 0; k < allIcs.length; k++) if (allIcs[k].id === icId) { curIdx = k; break; }
+      if (btnIcPrev) btnIcPrev.onclick = function() {
+        if (curIdx > 0) { adminViewingIc = allIcs[curIdx - 1].id; render(); }
+      };
+      if (btnIcNext) btnIcNext.onclick = function() {
+        if (curIdx < allIcs.length - 1) { adminViewingIc = allIcs[curIdx + 1].id; render(); }
+      };
+      document.querySelectorAll('.dot[data-icid]').forEach(function(d) {
+        d.onclick = function() { adminViewingIc = d.dataset.icid; render(); };
+      });
+    }
+  }
 
   if (isAdminView) {
     var btnBack = document.getElementById('btnBack');
