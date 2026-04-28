@@ -227,6 +227,8 @@
     display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
   }
   .admin-ic-head .name { flex: 1; font-weight: 700; font-size: 15px; }
+  .editable-name { cursor: pointer; padding: 4px 8px; margin: -4px -8px; border-radius: 6px; }
+  .editable-name:active { background: rgba(255,255,255,0.15); }
   .admin-ic-meta {
     font-size: 12px; opacity: 0.85; line-height: 1.5;
   }
@@ -964,7 +966,10 @@ function renderAdmin() {
       return '' +
         '<div class="admin-ic-card">' +
           '<div class="admin-ic-head">' +
-            '<div class="name">' + trophy + escapeHtml(ic.name) + '</div>' +
+            '<div class="name editable-name" data-act="rename-ic" data-id="' + ic.id + '" title="Tape pour renommer">' +
+              trophy + escapeHtml(ic.name) +
+              ' <span style="font-size:12px;opacity:0.5">✏️</span>' +
+            '</div>' +
           '</div>' +
           '<div class="admin-ic-meta">' +
             '⛳ ' + nbPlayers + '/' + nbMatches + ' joueurs · ' +
@@ -1064,6 +1069,23 @@ function renderAdmin() {
       if (act === 'share') openShareIcModal(id);
       if (act === 'del')   deleteIc(id);
     };
+  });
+  document.querySelectorAll('[data-act="rename-ic"]').forEach(function(el) {
+    el.onclick = function() { renameIc(el.dataset.id); };
+  });
+}
+
+function renameIc(icId) {
+  var ic = state.ics[icId];
+  if (!ic) return;
+  var current = ic.name || '';
+  var newName = prompt('Nouveau nom de la rencontre :', current);
+  if (newName === null) return; // annulé
+  newName = newName.trim();
+  if (!newName) { alert('Le nom ne peut pas être vide'); return; }
+  if (newName === current) return; // pas de changement
+  state.clubRef.child('ics/' + icId).update({ name: newName }).then(function() {
+    showToast('✏️ Renommée : ' + newName);
   });
 }
 
