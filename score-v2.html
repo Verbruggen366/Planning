@@ -719,6 +719,7 @@ function subscribeIcs() {
     state.clubName = club.name || 'Golf Club';
     state.dayDate = club.dayDate || null;
     state.dayTitle = club.dayTitle || null;
+    state.historyDelaySec = (typeof club.historyDelaySec === 'number') ? club.historyDelaySec : 30;
     state.ics = club.ics || {};
     if (state.role === 'admin') state.adminCode = club.adminCode;
     if ((state.role === 'fc' || state.role === 'cap') && state.currentIcId && !state.ics[state.currentIcId]) {
@@ -1012,6 +1013,20 @@ function renderAdmin() {
         '<button class="btn-secondary" id="btnRenameClub" style="flex:1">✏️ Renommer club</button>' +
         '<button class="btn-secondary" id="btnBackSpec" style="flex:1">👁 Mode spectateur</button>' +
       '</div>' +
+    '</div>' +
+
+    '<div class="card" style="margin-top:14px">' +
+      '<div class="lbl" style="margin-top:0">⚙️ Paramètres</div>' +
+      '<div style="font-size:13px;margin-bottom:8px;opacity:0.9">' +
+        'Délai avant enregistrement dans l\'historique<br>' +
+        '<span style="font-size:11px;opacity:0.75">(temps d\'attente après un changement de trou avant la sauvegarde)</span>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;align-items:center">' +
+        '<input class="field" id="histDelay" type="number" min="5" max="600" value="' + (state.historyDelaySec || 30) + '" style="flex:1">' +
+        '<span style="font-size:14px;font-weight:700">secondes</span>' +
+        '<button class="btn-secondary" id="btnSaveDelay" style="padding:10px 14px">💾</button>' +
+      '</div>' +
+      '<div style="font-size:11px;opacity:0.75;margin-top:6px">Min : 5 sec · Max : 600 sec (10 min) · Défaut : 30 sec</div>' +
     '</div>';
 
   if (hasDay) {
@@ -1030,6 +1045,17 @@ function renderAdmin() {
   document.getElementById('btnBackSpec').onclick = backToSpectator;
   var btnRoleTop = document.getElementById('btnRoleSwitchTop');
   if (btnRoleTop) btnRoleTop.onclick = openRoleSwitchModal;
+  var btnSaveDelay = document.getElementById('btnSaveDelay');
+  if (btnSaveDelay) btnSaveDelay.onclick = function() {
+    var v = parseInt(document.getElementById('histDelay').value);
+    if (isNaN(v) || v < 5 || v > 600) {
+      alert('Le délai doit être entre 5 et 600 secondes');
+      return;
+    }
+    state.clubRef.update({ historyDelaySec: v }).then(function() {
+      showToast('⚙️ Délai mis à jour : ' + v + ' sec');
+    });
+  };
 
   document.querySelectorAll('.admin-ic-actions button').forEach(function(b) {
     b.onclick = function() {
@@ -1298,9 +1324,15 @@ function renderFc() {
             '<div class="row">' +
               '<div class="group">' +
                 '<span class="label">Trou</span>' +
-                '<button class="btn btn-hole" data-act="hole" data-pid="' + pid + '" data-d="-1">−</button>' +
-                '<div class="display hole-display">' + (p.hole || 0) + '</div>' +
-                '<button class="btn btn-hole" data-act="hole" data-pid="' + pid + '" data-d="1">+</button>' +
+                (function() {
+                  var b = getHoleBounds(ic.id, pid);
+                  var curHole = p.hole || 0;
+                  var canMinus = curHole > b.min;
+                  var canPlus  = curHole < b.max;
+                  return '<button class="btn btn-hole" data-act="hole" data-pid="' + pid + '" data-d="-1"' + (canMinus ? '' : ' disabled style="opacity:0.3;cursor:not-allowed"') + '>−</button>' +
+                         '<div class="display hole-display">' + curHole + '</div>' +
+                         '<button class="btn btn-hole" data-act="hole" data-pid="' + pid + '" data-d="1"' + (canPlus ? '' : ' disabled style="opacity:0.3;cursor:not-allowed"') + '>+</button>';
+                })() +
               '</div>' +
               '<div class="group">' +
                 '<span class="label">Score</span>' +
@@ -1439,7 +1471,7 @@ function renderFc() {
   // Listeners actions (sur mon IC : édition / sur autres : juste l'historique)
   document.getElementById('players-list').addEventListener('click', function(e) {
     var b = e.target.closest('button');
-    if (!b) return;
+    if (!b || b.disabled) return;
     var act = b.dataset.act, pid = b.dataset.pid;
     if (act === 'history') {
       var targetIc = b.dataset.ic || ic.id;
@@ -1527,9 +1559,15 @@ function renderIcDetail(icId, isAdminView, viewerRole) {
           '<div class="row">' +
             '<div class="group">' +
               '<span class="label">Trou</span>' +
-              '<button class="btn btn-hole" data-act="hole" data-pid="' + pid + '" data-d="-1">−</button>' +
-              '<div class="display hole-display">' + (p.hole || 0) + '</div>' +
-              '<button class="btn btn-hole" data-act="hole" data-pid="' + pid + '" data-d="1">+</button>' +
+              (function() {
+                var b = getHoleBounds(icId, pid);
+                var curHole = p.hole || 0;
+                var canMinus = curHole > b.min;
+                var canPlus  = curHole < b.max;
+                return '<button class="btn btn-hole" data-act="hole" data-pid="' + pid + '" data-d="-1"' + (canMinus ? '' : ' disabled style="opacity:0.3;cursor:not-allowed"') + '>−</button>' +
+                       '<div class="display hole-display">' + curHole + '</div>' +
+                       '<button class="btn btn-hole" data-act="hole" data-pid="' + pid + '" data-d="1"' + (canPlus ? '' : ' disabled style="opacity:0.3;cursor:not-allowed"') + '>+</button>';
+              })() +
             '</div>' +
             '<div class="group">' +
               '<span class="label">Score</span>' +
@@ -1695,7 +1733,7 @@ function renderIcDetail(icId, isAdminView, viewerRole) {
   // Délégation clics
   document.getElementById('players-list').addEventListener('click', function(e) {
     var b = e.target.closest('button');
-    if (!b) return;
+    if (!b || b.disabled) return;
     var act = b.dataset.act, pid = b.dataset.pid;
     if (act === 'del'    && isAdminView) removePlayer(icId, pid);
     if (act === 'score')                 changeScore(icId, pid, parseInt(b.dataset.d));
@@ -1734,12 +1772,8 @@ function renderSpectator() {
     '</div>';
   }
 
-  // Bouton "J'ai un code" — bien visible
-  var codeBtn = '<div style="margin:14px 0">' +
-    '<button class="btn-secondary" onclick="openCodePrompt()" style="width:100%;background:rgba(255,213,79,0.25);border-color:rgba(255,213,79,0.5);padding:14px;font-size:14px">' +
-      '🔑 J\'ai un code (Fore Caddy ou Admin)' +
-    '</button>' +
-    '</div>';
+  // (Bouton "J'ai un code" supprimé — le bouton "🔄 Rôle" en haut suffit)
+  var codeBtn = '';
 
   if (icsArr.length === 0) {
     appEl.innerHTML =
@@ -1975,8 +2009,7 @@ function changeScore(icId, pid, d) {
   var newScore = cur + d;
   var hole = (p && p.hole) || 0;
   var updates = { score: newScore };
-  // Historique : noter le score à ce trou
-  updates['holeScores/' + hole] = newScore;
+  // (Plus d'enregistrement dans holeScores ici : ça se fait au changement de trou)
   // Auto-bascule de statut si match plié (avant le 19ème trou)
   var newStatus = autoStatus(p, newScore, hole);
   if (newStatus !== null) updates.status = newStatus;
@@ -1984,19 +2017,92 @@ function changeScore(icId, pid, d) {
   if (newStatus === 'lost') updates.won = false;
   state.clubRef.child('ics/' + icId + '/players/' + pid).update(updates);
 }
+/* Bornes du trou pour un joueur :
+   - max = trou du joueur précédent (le N+1 ne peut pas dépasser le N)
+   - min = trou du joueur suivant   (le N ne peut pas descendre en dessous de N+1)
+   Le 1er joueur n'a pas de max ; le dernier joueur n'a pas de min plus contraignant que 0. */
+function getHoleBounds(icId, pid) {
+  var ic = state.ics[icId];
+  if (!ic || !ic.players) return { min: 0, max: 36 };
+  var pids = Object.keys(ic.players).sort(function(a, b) {
+    return ((ic.players[a] && ic.players[a].order) || 0) - ((ic.players[b] && ic.players[b].order) || 0);
+  });
+  var idx = pids.indexOf(pid);
+  if (idx < 0) return { min: 0, max: 36 };
+  var max = 36;
+  if (idx > 0) {
+    var prev = ic.players[pids[idx - 1]];
+    max = (prev && typeof prev.hole === 'number') ? prev.hole : 36;
+  }
+  var min = 0;
+  if (idx < pids.length - 1) {
+    var next = ic.players[pids[idx + 1]];
+    min = (next && typeof next.hole === 'number') ? next.hole : 0;
+  }
+  return { min: min, max: max };
+}
+
+/* === Historique : enregistrement avec délai et filet de sécurité ===
+   - Au changement de trou, on programme une sauvegarde après X secondes (paramètre admin)
+   - Si l'utilisateur change encore le trou avant la fin du délai, on annule et reprogramme
+   - Filet de sécurité : si on change de trou et qu'un enregistrement précédent était en attente,
+     on l'enregistre immédiatement avec son ancien score
+*/
+var historyTimers = {};   // pid -> {timeoutId, prevHole, prevScore, icId}
+
+function scheduleHistorySave(icId, pid, oldHole, newHole) {
+  var club = state.clubId;
+  if (!club) return;
+  var delaySec = (state.historyDelaySec || 30);
+  // Si un timer était en attente pour ce joueur, le sauvegarder immédiatement
+  // (filet de sécurité : on ne perd pas la donnée du trou précédent)
+  if (historyTimers[pid]) {
+    clearTimeout(historyTimers[pid].timeoutId);
+    var prev = historyTimers[pid];
+    saveHistoryNow(prev.icId, pid, prev.prevHole, prev.prevScore);
+    delete historyTimers[pid];
+  }
+  // Programmer la nouvelle sauvegarde dans X secondes
+  var p = state.ics[icId] && state.ics[icId].players[pid];
+  if (!p) return;
+  var snapshotScore = p.score || 0;
+  var timeoutId = setTimeout(function() {
+    // Au moment de la sauvegarde, on relit le score actuel (pour avoir la valeur la plus récente)
+    var freshP = state.ics[icId] && state.ics[icId].players[pid];
+    var finalScore = (freshP && typeof freshP.score === 'number') ? freshP.score : snapshotScore;
+    saveHistoryNow(icId, pid, newHole, finalScore);
+    delete historyTimers[pid];
+  }, delaySec * 1000);
+  historyTimers[pid] = { timeoutId: timeoutId, prevHole: newHole, prevScore: snapshotScore, icId: icId };
+}
+
+function saveHistoryNow(icId, pid, hole, score) {
+  if (!state.clubRef) return;
+  var update = {};
+  update['holeScores/' + hole] = score;
+  state.clubRef.child('ics/' + icId + '/players/' + pid).update(update);
+}
+
 function changeHole(icId, pid, d) {
   var p = state.ics[icId].players[pid];
-  var h = ((p && p.hole) || 0) + d;
+  var oldHole = (p && p.hole) || 0;
+  var h = oldHole + d;
   if (h < 0) h = 0;
   if (h > 36) h = 36;
+  // Bornes selon ordre des joueurs
+  var bounds = getHoleBounds(icId, pid);
+  if (h > bounds.max) h = bounds.max;
+  if (h < bounds.min) h = bounds.min;
+  if (h === oldHole) return; // pas de changement, on n'enregistre rien
   var updates = { hole: h };
-  // Historique : noter le score actuel au nouveau trou
-  updates['holeScores/' + h] = (p && p.score) || 0;
   var newStatus = autoStatus(p, p.score || 0, h);
   if (newStatus !== null) updates.status = newStatus;
   if (newStatus === 'won')  updates.won = true;
   if (newStatus === 'lost') updates.won = false;
-  state.clubRef.child('ics/' + icId + '/players/' + pid).update(updates);
+  state.clubRef.child('ics/' + icId + '/players/' + pid).update(updates).then(function() {
+    // Programmer la sauvegarde de l'historique pour ce nouveau trou
+    scheduleHistorySave(icId, pid, oldHole, h);
+  });
 }
 
 /* Retourne 'won', 'lost' ou null selon si le match est mathématiquement plié.
@@ -2106,6 +2212,119 @@ function openEditDayModal() {
       showToast('📅 Journée enregistrée');
     });
   };
+}
+
+/* ============================================================
+   GRAPHIQUE HISTORIQUE D'UN JOUEUR
+   ============================================================ */
+function openPlayerHistoryModal(icId, pid) {
+  var ic = state.ics[icId];
+  if (!ic) return;
+  var p = ic.players && ic.players[pid];
+  if (!p) return;
+
+  // Récupérer les scores trou par trou
+  var hs = p.holeScores || {};
+  var holes = Object.keys(hs).map(function(k) { return parseInt(k); })
+                             .filter(function(n) { return !isNaN(n); })
+                             .sort(function(a, b) { return a - b; });
+
+  var maxHole = holes.length > 0 ? Math.max.apply(null, holes) : 0;
+  if (maxHole < 18) maxHole = 18;
+  if ((p.hole || 0) > maxHole) maxHole = p.hole;
+
+  var scores = holes.map(function(h) { return hs[h]; });
+  scores.push(0);
+  var minS = Math.min.apply(null, scores);
+  var maxS = Math.max.apply(null, scores);
+  if (maxS < 2) maxS = 2;
+  if (minS > -2) minS = -2;
+
+  // Génération SVG
+  var W = 360, H = 220;
+  var padL = 36, padR = 12, padT = 14, padB = 28;
+  var plotW = W - padL - padR;
+  var plotH = H - padT - padB;
+
+  function xAt(hole) { return padL + (hole / maxHole) * plotW; }
+  function yAt(score) {
+    var range = maxS - minS;
+    if (range === 0) range = 1;
+    return padT + (1 - (score - minS) / range) * plotH;
+  }
+
+  var gridLines = '';
+  for (var s = Math.ceil(minS); s <= Math.floor(maxS); s++) {
+    var y = yAt(s);
+    var color = (s === 0) ? '#94a3b8' : '#e2e8f0';
+    var width = (s === 0) ? 1.5 : 1;
+    gridLines += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y +
+                 '" stroke="' + color + '" stroke-width="' + width + '"/>';
+    var label = s > 0 ? (s + ' UP') : s < 0 ? (Math.abs(s) + ' DN') : 'AS';
+    gridLines += '<text x="' + (padL - 6) + '" y="' + (y + 4) + '" font-size="10" fill="#64748b" text-anchor="end">' + label + '</text>';
+  }
+  for (var h = 0; h <= maxHole; h += 3) {
+    var x = xAt(h);
+    gridLines += '<line x1="' + x + '" y1="' + padT + '" x2="' + x + '" y2="' + (H - padB) +
+                 '" stroke="#f1f5f9" stroke-width="1"/>';
+    gridLines += '<text x="' + x + '" y="' + (H - padB + 14) + '" font-size="10" fill="#64748b" text-anchor="middle">' + h + '</text>';
+  }
+
+  // Points : hole 0 par défaut + tous les holes mémorisés + score actuel si pas déjà inclus
+  var pathPoints = [];
+  if (holes.indexOf(0) === -1) pathPoints.push({ h: 0, s: 0 });
+  holes.forEach(function(h) { pathPoints.push({ h: h, s: hs[h] }); });
+  if (pathPoints.length === 0 || pathPoints[pathPoints.length - 1].h !== (p.hole || 0)) {
+    pathPoints.push({ h: p.hole || 0, s: p.score || 0 });
+  }
+
+  var pathD = '';
+  var circles = '';
+  pathPoints.forEach(function(pt, i) {
+    var x = xAt(pt.h), y = yAt(pt.s);
+    pathD += (i === 0 ? 'M' : ' L') + x.toFixed(1) + ',' + y.toFixed(1);
+    var color = pt.s > 0 ? '#16a34a' : pt.s < 0 ? '#dc2626' : '#f59e0b';
+    circles += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3.5" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>';
+  });
+
+  var line = pathPoints.length > 1
+    ? '<path d="' + pathD + '" stroke="#1e3c72" stroke-width="2.5" fill="none" stroke-linejoin="round" stroke-linecap="round"/>'
+    : '';
+
+  var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" style="width:100%;background:#fff;border-radius:8px">' +
+    gridLines + line + circles +
+    '<text x="' + (W / 2) + '" y="' + (H - 4) + '" font-size="10" fill="#64748b" text-anchor="middle">Trou</text>' +
+    '</svg>';
+
+  // Tableau récap
+  var tableHtml = '';
+  if (pathPoints.length > 0) {
+    tableHtml = '<div style="margin-top:14px;font-size:12px;color:#1e293b;background:#f8fafc;border-radius:8px;padding:10px;max-height:140px;overflow-y:auto">' +
+      '<div style="font-weight:700;margin-bottom:6px;color:#1e3c72">Détail trou par trou</div>';
+    pathPoints.forEach(function(pt) {
+      var label = pt.s > 0 ? (pt.s + ' UP') : pt.s < 0 ? (Math.abs(pt.s) + ' DN') : 'AS';
+      var color = pt.s > 0 ? '#16a34a' : pt.s < 0 ? '#dc2626' : '#ca8a04';
+      tableHtml += '<div style="display:flex;justify-content:space-between;border-bottom:1px solid #e2e8f0;padding:3px 0">' +
+                   '<span>Trou ' + pt.h + '</span>' +
+                   '<span style="font-weight:700;color:' + color + '">' + label + '</span>' +
+                   '</div>';
+    });
+    tableHtml += '</div>';
+  }
+
+  var status = p.status || 'pending';
+  var statusLabel = status === 'won' ? '✅ Match gagné' : status === 'lost' ? '❌ Match perdu' : 'En cours';
+  var statusColor = status === 'won' ? '#16a34a' : status === 'lost' ? '#dc2626' : '#64748b';
+
+  showModal(
+    '<h3>📊 ' + escapeHtml(p.name || '?') + '</h3>' +
+    '<div style="font-size:12px;color:' + statusColor + ';font-weight:700;margin-bottom:10px">' + statusLabel + ' · Trou actuel : ' + (p.hole || 0) + '</div>' +
+    svg +
+    tableHtml +
+    '<div class="modal-actions">' +
+      '<button class="ma-cancel" onclick="hideModal()" style="flex:1">Fermer</button>' +
+    '</div>'
+  );
 }
 
 function startNewDay() {
